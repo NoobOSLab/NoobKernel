@@ -177,7 +177,7 @@ int buddy_free(void *addr)
 
 	block->start = addr;
 	page->private = block;
-	buddy_free_pages += (1 >> page->order);
+	buddy_free_pages += (1 << page->order);
 	list_add(&block->list, &buddy_free_list[page->order]);
 	return 0;
 }
