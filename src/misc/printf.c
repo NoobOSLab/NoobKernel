@@ -35,6 +35,7 @@
 #include <hal/sbi.h>
 
 #include <misc/printf.h>
+#include <async/spinlock.h>
 
 // define this globally (e.g. gcc -DPRINTF_INCLUDE_CONFIG_H ...) to include the
 // printf_config.h header file
@@ -963,10 +964,13 @@ static int _vsnprintf(out_fct_type out, char *buffer, const size_t maxlen,
 ///////////////////////////////////////////////////////////////////////////////
 
 int printf_(const char *format, ...) {
+	static spinlock_t printf_lock;
 	va_list va;
 	va_start(va, format);
 	char buffer[1];
+	spinlock_acquire(&printf_lock);
 	const int ret = _vsnprintf(_out_char, buffer, (size_t)-1, format, va);
+	spinlock_release(&printf_lock);
 	va_end(va);
 	return ret;
 }

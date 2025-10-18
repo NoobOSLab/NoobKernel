@@ -2,7 +2,6 @@
 #include <mm/pm.h>
 #include <mm/slab.h>
 #include <mm/buddy.h>
-#include <mm/layout.h>
 #include <misc/string.h>
 #include <misc/printf.h>
 #include <misc/errno.h>
@@ -20,7 +19,7 @@ int kfree_page(void *addr) {
 	struct page *page = addr2page(addr);
 	if (page == NULL)
 		return -EINVAL;
-	if (page->flags & PMF_BUDDY)
+	if (page->flags & PM_BUDDY)
 		return buddy_free(addr);
 	else
 		return page_free(addr);
@@ -67,9 +66,9 @@ int kfree(void *addr) {
 	struct page *page = addr2page((void *)PAGE_ALIGN_DOWN((uintptr_t)addr));
 	if (page == NULL)
 		return -EINVAL;
-	if (page->flags & PMF_SLAB)
+	if (page->flags & PM_SLAB)
 		return slab_free(addr);
-	else if (page->flags & PMF_BUDDY)
+	else if (page->flags & PM_BUDDY)
 		return buddy_free(addr);
 	else
 		return -EINVAL;

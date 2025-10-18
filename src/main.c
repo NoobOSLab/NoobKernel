@@ -4,28 +4,33 @@
 #include <misc/complier.h>
 #include <async/trap.h>
 #include <hal/timer.h>
+#include <mm/vm.h>
 
 extern char *s_bss;
 extern char *e_bss;
 
-static inline void clear_bss() {
-	memset(s_bss, 0, e_bss - s_bss);
-}
+static inline void clear_bss() { memset(s_bss, 0, e_bss - s_bss); }
 
-static void timer_callback() {
-	set_timer(time_now() + ms_to_ticks(1000), timer_callback);
-	infof("time_now: %zu", time_now());
-}
-
-void main(u64 hartid, void *_) {
+void main(u64 hartid, void *_)
+{
 	if (hartid == 0) {
 		clear_bss();
-		infof("Hello world");
+		set_cpu(hartid);
+		infof("Hello world on cpu: %d", thiscpu()->id);
 		print_pm_layout();
 		pm_init();
 		trap_init();
-		tick_t timer = time_now() + ms_to_ticks(1000);
-		set_timer(timer, timer_callback);
+		timer_init();
+		kvminit();
+		tick_t t = 0;
+		while (1) {
+			if (tick() - t >= TIMER_IRQ_HZ) {
+				t = tick();
+				infof("time: %us", t / TIMER_IRQ_HZ);
+			} else {
+				wfi();
+			}
+		}
 	}
 	while (1) {
 		wfi();

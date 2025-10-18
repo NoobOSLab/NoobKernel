@@ -28,6 +28,11 @@ typedef int dev_t;
 #define MINOR(dev) ((dev) & 0x000fffff)
 #define MKDEV(major, minor) (((major) << 20) | ((minor) & 0xfffff))
 
+typedef ssize_t off_t;
+
 typedef u64 tick_t;
+typedef u64 *pagetable_t;
+
+typedef int pid_t;
 
 #endif

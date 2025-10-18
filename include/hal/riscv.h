@@ -284,7 +284,7 @@ r_sp()
 }
 
 // read and write tp, the thread pointer, which holds
-// this core's hartid (core number), the index into cpus[].
+// this core's cpu struct pointer.
 static inline u64
 r_tp()
 {

@@ -3,9 +3,6 @@
 
 #include <misc/stddef.h>
 
-void *kalloc_page();
-int kfree_page(void *addr);
-
 void *kmalloc(size_t size);
 void *kzalloc(size_t size);
 void *kcalloc(size_t nitems, size_t size);

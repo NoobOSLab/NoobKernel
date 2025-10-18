@@ -3,6 +3,7 @@
 
 #include <misc/stddef.h>
 #include <hal/riscv.h>
+#include <task/proc.h>
 
 struct trapframe {
 	/*   0 */ u64 kernel_satp; // kernel page table
@@ -68,20 +69,9 @@ enum Interrupt {
 	UserExternal = 8,
 	SupervisorExternal,
 };
-
-static inline u64 intr_off(void) {
-	u64 old = r_sstatus();
-	w_sstatus(old & ~SSTATUS_SIE);
-	return old;
-}
-
-static inline void intr_on(void) {
-	w_sstatus(r_sstatus() | SSTATUS_SIE);
-}
-
-static inline void restore_intr(u64 old) {
-	w_sstatus((r_sstatus() & ~SSTATUS_SIE) | (old & SSTATUS_SIE));
-}
+void intr_off();
+void intr_on();
+void restore_intr(u64 old);
 
 int trap_init();
 

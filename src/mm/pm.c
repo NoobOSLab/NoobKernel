@@ -1,5 +1,4 @@
 #include <mm/pm.h>
-#include <mm/layout.h>
 #include <misc/list.h>
 #include <mm/slab.h>
 #include <mm/buddy.h>
@@ -41,7 +40,7 @@ static int pm_pages_init()
 	for (uintptr_t addr = SBI_BASE; addr < KERNEL_BASE; addr += PAGE_SIZE) {
 		int index = addr2index(addr);
 		if (index != -1) {
-			pages[index].flags = PMF_STATIC;
+			pages[index].flags = PM_STATIC;
 		} else {
 			return -EINVAL;
 		}
@@ -52,7 +51,7 @@ static int pm_pages_init()
 	     addr += PAGE_SIZE) {
 		int index = addr2index(addr);
 		if (index != -1) {
-			pages[index].flags = PMF_STATIC;
+			pages[index].flags = PM_STATIC;
 		} else {
 			return -EINVAL;
 		}
@@ -63,7 +62,7 @@ static int pm_pages_init()
 	     addr += PAGE_SIZE) {
 		int index = addr2index(addr);
 		if (index != -1) {
-			pages[index].flags = PMF_STATIC | PMF_SLAB;
+			pages[index].flags = PM_STATIC | PM_SLAB;
 		} else {
 			return -EINVAL;
 		}
@@ -74,7 +73,7 @@ static int pm_pages_init()
 	     addr += PAGE_SIZE) {
 		int index = addr2index(addr);
 		if (index != -1) {
-			pages[index].flags = PMF_STATIC | PMF_BUDDY;
+			pages[index].flags = PM_STATIC | PM_BUDDY;
 			pages[index].order =
 				BUDDY_MAX_ORDER + 1; //表示这个页属于某个大块
 			pages[index].private = NULL;
@@ -101,7 +100,7 @@ static int collect_free_pages()
 	INIT_LIST_HEAD(&page_free_list);
 	// 遍历所有页面，将空闲页面添加到free_pages列表
 	for (size_t i = 0; i < PAGE_NUM; i++) {
-		if (pages[i].refs == 0 && !(pages[i].flags & PMF_STATIC)) {
+		if (pages[i].refs == 0 && !(pages[i].flags & PM_STATIC)) {
 			single_free_pages++;
 			struct page_list *new_page =
 				slab_alloc(sizeof(struct page_list));
@@ -156,30 +155,6 @@ void *page2addr(struct page *page)
 	int index =
 		((uintptr_t)page - (uintptr_t)&pages[0]) / sizeof(struct page);
 	return (void *)index2addr(index);
-}
-
-int pm_page_get(void *addr)
-{
-	int index = addr2index((uintptr_t)addr);
-	if (index == -1) {
-		return -EINVAL;
-	}
-	pages[index].refs++;
-	return 0;
-}
-
-int pm_page_put(void *addr)
-{
-	int index = addr2index((uintptr_t)addr);
-	if (index == -1) {
-		return -EINVAL;
-	}
-
-	if (pages[index].refs == 0) {
-		return -EINVAL;
-	}
-	pages[index].refs--;
-	return 0;
 }
 
 void *page_alloc(u8 flags)

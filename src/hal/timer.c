@@ -1,20 +1,20 @@
-#include <hal/timer.h>
 #include <hal/riscv.h>
 #include <hal/sbi.h>
+#include <hal/timer.h>
 
-void (*timer_callback)(void) = NULL;
+static volatile tick_t kernel_tick;
 
-tick_t time_now(){
-	return r_time();
+inline tick_t tick()
+{
+	return kernel_tick;
 }
 
-void set_timer(tick_t time, void (*callback)(void)){
-	if(!callback)
-		return;
-	timer_callback = callback;
-	sbi_set_timer(time);
+void timer_init() {
+	sbi_set_timer(r_time() + us_to_cputime(1000000ULL / TIMER_IRQ_HZ));
+	kernel_tick = cputime_to_us(r_time()) * TIMER_IRQ_HZ / 1000000ULL;
 }
 
-void handle_timer(){
-	timer_callback();
+void handle_timer() {
+	sbi_set_timer(r_time() + us_to_cputime(1000000ULL / TIMER_IRQ_HZ));
+	kernel_tick++;
 }

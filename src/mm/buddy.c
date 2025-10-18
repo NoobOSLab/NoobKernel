@@ -1,10 +1,10 @@
 #include <mm/buddy.h>
-#include <mm/layout.h>
 #include <misc/list.h>
 #include <misc/math.h>
 #include <mm/slab.h>
 #include <misc/errno.h>
 #include <mm/pm.h>
+#include <config.h>
 #include <misc/log.h>
 
 bool buddy_inited = false;
@@ -167,7 +167,7 @@ void *buddy_alloc(size_t size)
 int buddy_free(void *addr)
 {
 	struct page *page = addr2page(addr);
-	if (page == NULL || !(page->flags & PMF_BUDDY) ||
+	if (page == NULL || !(page->flags & PM_BUDDY) ||
 	    page->order > BUDDY_MAX_ORDER || page->private != NULL)
 		return -EINVAL;
 

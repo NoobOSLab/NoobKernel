@@ -1,6 +1,5 @@
 #include <mm/slab.h>
-#include <mm/config.h>
-#include <mm/layout.h>
+#include <config.h>
 #include <misc/stdbool.h>
 #include <misc/string.h>
 #include <misc/errno.h>
@@ -58,7 +57,7 @@ int slab_create(void *addr, u8 order)
 	}
 	for (uintptr_t p = 0; p < SLAB_BLOB_SIZE; p += PAGE_SIZE) {
 		struct page *page = addr2page((void *)(p + (uintptr_t)addr));
-		page->flags |= PMF_SLAB;
+		page->flags |= PM_SLAB;
 	}
 	struct slab *s = (struct slab *)addr;
 	u32 total = object_num(order);
@@ -101,7 +100,7 @@ int slab_destroy(void *addr)
 	list_del(&s->list);
 	for (uintptr_t p = 0; p < SLAB_BLOB_SIZE; p += PAGE_SIZE) {
 		struct page *page = addr2page((void *)(p + (uintptr_t)addr));
-		page->flags &= ~PMF_SLAB;
+		page->flags &= ~PM_SLAB;
 	}
 	return 0;
 }

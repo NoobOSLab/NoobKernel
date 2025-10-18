@@ -1,38 +1,80 @@
 #ifndef __CONFIG_H__
 #define __CONFIG_H__
 
-#if defined (QEMU)
+#if defined(QEMU)
 #include <platform/qemu_virt.h>
 #endif
 
-static inline uint64_t ns_to_ticks(uint64_t ns) {
-    return (ns * TIMEBASE_FREQ) / 1000000000ULL;
+extern char skernel[];
+extern char ekernel[];
+
+#define TIMER_IRQ_HZ 100
+
+static inline uint64_t ns_to_cputime(uint64_t ns) {
+  return (ns * TIMEBASE_FREQ) / 1000000000ULL;
 }
 
-static inline uint64_t us_to_ticks(uint64_t us) {
-    return (us * TIMEBASE_FREQ) / 1000000ULL;
+static inline uint64_t us_to_cputime(uint64_t us) {
+  return (us * TIMEBASE_FREQ) / 1000000ULL;
 }
 
-static inline uint64_t ms_to_ticks(uint64_t ms) {
-    return (ms * TIMEBASE_FREQ) / 1000ULL;
+static inline uint64_t ms_to_cputime(uint64_t ms) {
+  return (ms * TIMEBASE_FREQ) / 1000ULL;
 }
 
-static inline uint64_t sec_to_ticks(uint64_t sec) {
-    return sec * TIMEBASE_FREQ;
+static inline uint64_t sec_to_cputime(uint64_t sec) {
+  return sec * TIMEBASE_FREQ;
 }
 
-static inline uint64_t ticks_to_ns(uint64_t ticks) {
-    return (ticks * 1000000000ULL) / TIMEBASE_FREQ;
+static inline uint64_t cputime_to_ns(uint64_t cputime) {
+  return (cputime * 1000000000ULL) / TIMEBASE_FREQ;
 }
 
-static inline uint64_t ticks_to_us(uint64_t ticks) {
-    return (ticks * 1000000ULL) / TIMEBASE_FREQ;
+static inline uint64_t cputime_to_us(uint64_t cputime) {
+  return (cputime * 1000000ULL) / TIMEBASE_FREQ;
 }
 
-static inline uint64_t ticks_to_ms(uint64_t ticks) {
-    return (ticks * 1000ULL) / TIMEBASE_FREQ;
+static inline uint64_t cputime_to_ms(uint64_t cputime) {
+  return (cputime * 1000ULL) / TIMEBASE_FREQ;
 }
 
+#define PAGE_SHIFT 12
+#define PAGE_SIZE (1ULL << PAGE_SHIFT)
+#define PAGE_NUM (MEM_SIZE / PAGE_SIZE)
+#define PAGE_ALIGN_UP(a) ALIGN_UP(a, PAGE_SIZE)
+#define PAGE_ALIGN_DOWN(a) ALIGN_DOWN(a, PAGE_SIZE)
+#define PAGE_ALIGNED(a) ALIGNED(a, PAGE_SIZE)
+#define PM_END (PM_START + MEM_SIZE)
 
+#define SLAB_MIN_ORDER 3
+#define SLAB_MAX_ORDER 11
+#define SLAB_BLOB_SIZE (MEM_SIZE / 2048)
+#define SLAB_ALIGN_UP(a) ALIGN_UP(a, SLAB_BLOB_SIZE)
+#define SLAB_ALIGN_DOWN(a) ALIGN_DOWN(a, SLAB_BLOB_SIZE)
+#define SLAB_ALIGNED(a) ALIGNED(a, SLAB_BLOB_SIZE)
+
+#define EARLY_SLAB_SIZE (SLAB_BLOB_SIZE * 16)
+
+#define BUDDY_MAX_ORDER 11
+#define BUDDY_BLOB_SIZE ((1ULL << BUDDY_MAX_ORDER) * PAGE_SIZE)
+#define BUDDY_ALIGN_UP(a) ALIGN_UP(a, BUDDY_BLOB_SIZE)
+#define BUDDY_ALIGN_DOWN(a) ALIGN_DOWN(a, BUDDY_BLOB_SIZE)
+#define BUDDY_ALIGNED(a) ALIGNED(a, BUDDY_BLOB_SIZE)
+
+#define USTACK_SIZE (8 * PAGE_SIZE)
+#define KSTACK_SIZE (PAGE_SIZE)
+#define TRAP_PAGE_SIZE (PAGE_SIZE)
+
+#define SBI_BASE PM_START
+#define KERNEL_BASE PAGE_ALIGN_DOWN((uintptr_t)skernel)
+#define KERNEL_END PAGE_ALIGN_UP((uintptr_t)ekernel)
+
+#define EARLY_SLAB_BASE SLAB_ALIGN_UP(KERNEL_END + PAGE_SIZE)
+#define EARLY_SLAB_END (EARLY_SLAB_BASE + EARLY_SLAB_SIZE)
+
+#define BUDDY_SYSTEM_BASE BUDDY_ALIGN_UP(EARLY_SLAB_END)
+#define BUDDY_SYSTEM_END (BUDDY_ALIGN_DOWN(PM_END))
+#define BUDDY_BLOB_NUM                                                         \
+  ((BUDDY_SYSTEM_END - BUDDY_SYSTEM_BASE) / BUDDY_BLOB_SIZE)
 
 #endif

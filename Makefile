@@ -20,7 +20,7 @@ SRC_DIR := src
 BUILD_DIR := build
 ARCH_DIR := $(BUILD_DIR)/$(ARCH)
 INCLUDES := include/
-MODULES := misc mm async hal
+MODULES := misc mm async hal task
 TARGET := $(ARCH_DIR)/kernel
 ASM := $(ARCH_DIR)/kernel.asm
 SYM := $(ARCH_DIR)/kernel.sym
@@ -49,7 +49,7 @@ GDB_PORT = 15234
 QEMU_FLAGS = \
 	-nographic \
 	-machine virt \
-	-m 4G \
+	-m 512M \
 	-kernel $(TARGET)
 QEMUGDB = -gdb tcp::$(GDB_PORT)
 
@@ -115,9 +115,9 @@ run: $(TARGET)
 	@echo "RUN     QEMU (virt)"
 	@$(QEMU) $(QEMU_FLAGS)
 
-debug: $(TARGET) .gdbinit
+debug: $(TARGET)
 	@echo "DEBUG   QEMU (gdb)"
 	$(QEMU) $(QEMU_FLAGS) -S $(QEMUGDB) &
-	@while ! nc -zv localhost $(GDB_PORT) 2>/dev/null; do sleep 0.1; done
+	@while ! nc -zv localhost $(GDB_PORT) 2>/dev/null; do sleep 0.5; done
 	@echo "GDB     connecting..."
 	@$(GDB)

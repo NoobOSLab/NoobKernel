@@ -1,7 +1,10 @@
 	.section .text.entry
 	.globl _entry
 _entry:
-	la sp, boot_stack_top
+	li t0, 32768
+	mul t0, a0, t0
+	la t1, boot_stack_top
+	sub sp, t1, t0
 	call main
 
 	.section .bss.stack
