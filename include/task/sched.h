@@ -1,0 +1,13 @@
+#ifndef __TASK_SCHED_H__
+#define __TASK_SCHED_H__
+
+#include <task/proc.h>
+
+extern void context_switch(struct context *old, struct context *new);
+void init_runq();
+bool is_runq_empty(int hartid);
+void enqueue_proc(int hartid, struct proc *p);
+struct proc *dequeue_proc(int hartid);
+void sched_yield();
+
+#endif

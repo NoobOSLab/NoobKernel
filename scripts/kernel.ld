@@ -11,9 +11,9 @@ SECTIONS
     .text : {
         *(.text.entry)
         *(.text .text.*)
-        . = ALIGN(0x1000);
-        *(trampsec)
-        . = ALIGN(0x1000);
+        . = ALIGN(4K);
+        *(.text.trampsec)
+        . = ALIGN(4K);
     }
 
     . = ALIGN(4K);

@@ -1,4 +1,5 @@
 #include <async/trap.h>
+#include <task/sched.h>
 #include <misc/log.h>
 
 extern char trampoline[], uservec[];
@@ -70,13 +71,13 @@ void kerneltrap(void)
 		// 目前内核不应发生异常（如非法指令、缺页等）
 		// 若发生，说明内核 bug
 		switch (scause) {
-		case 2: // illegal instruction
+		case IllegalInstruction:
 			panic("kernel illegal instruction at %p", sepc);
-		case 12: // load page fault
-		case 13: // store/AMO page fault
+		case LoadPageFault: // load page fault
+		case StorePageFault: // store/AMO page fault
 			panic("kernel page fault at %p, stval=%p", sepc,
 			      r_stval());
-		case 8: // environment call from S-mode (ecall)
+		case UserEnvCall: // environment call from U-mode (ecall)
 			panic("kernel ecall at %p (should not happen)", sepc);
 		default:
 			panic("kernel exception: scause=%lx, sepc=%p", scause,
@@ -88,15 +89,15 @@ void kerneltrap(void)
 	int irq = scause & 0x3FF; // 提取中断号（低 10 位）
 
 	switch (irq) {
-	case 1: // Supervisor Software Interrupt (SSI)
+	case SupervisorSoft: // Supervisor Software Interrupt (SSI)
 		// handle_ipi();
 		break;
 
-	case 5: // Supervisor Timer Interrupt (STI)
+	case SupervisorTimer: // Supervisor Timer Interrupt (STI)
 		handle_timer();
 		break;
 
-	case 9: // Supervisor External Interrupt (SEI)
+	case SupervisorExternal: // Supervisor External Interrupt (SEI)
 		// handle_external();
 		break;
 
@@ -104,7 +105,4 @@ void kerneltrap(void)
 		panic("unknown kernel interrupt: irq=%d (scause=%lx)", irq,
 		      scause);
 	}
-
-	// 注意：所有中断 handler 必须在返回前设置下一次中断（如 timer）
-	// 且不能在此处开启中断（保持关闭，由调度器决定何时开）
 }

@@ -3,6 +3,14 @@
 
 #include <misc/list.h>
 #include <misc/stddef.h>
+#include <async/spinlock.h>
+
+#define PROC_UNUSED 0
+#define PROC_EMBRYO 1
+#define PROC_RUNNABLE 2
+#define PROC_RUNNING 3
+#define PROC_SLEEPING 4
+#define PROC_ZOMBIE 5
 
 struct context {
 	u64 ra;
@@ -25,7 +33,7 @@ struct context {
 
 struct cpu {
 	struct proc *proc;
-	struct context context;
+	struct context ctx;
 	u64 intr_state;
 	int intr_depth;
 	int id;
@@ -33,15 +41,30 @@ struct cpu {
 
 struct proc {
 	char comm[16];
-
 	pid_t pid;
 	pid_t tgid;
 
 	pagetable_t pagetable;
 	struct list_head vma;
+
+	struct context ctx;
+	struct trapframe *tf;
+	void *kstack;
+
+	int state;
+	struct list_head runq;
+
+	struct proc *parent;
+	struct list_head children;
+	struct list_head sibling;
+
+	spinlock_t lock;
 };
 
-void set_cpu(u64 id);
+void init_cpu(u64 id);
 struct cpu *thiscpu();
+
+struct proc *alloc_proc();
+void free_proc(struct proc *p);
 
 #endif

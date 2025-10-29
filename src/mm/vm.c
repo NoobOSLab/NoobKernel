@@ -13,7 +13,7 @@ extern char e_bss[];
 extern char ekernel[];
 extern char trampoline[];
 
-static pagetable_t kpagetable;
+pagetable_t kpagetable;
 
 uintptr_t va2pa(pagetable_t pagetable, uintptr_t va)
 {
