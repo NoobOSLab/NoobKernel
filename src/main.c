@@ -2,7 +2,7 @@
 #include <misc/string.h>
 #include <mm/pm.h>
 #include <misc/complier.h>
-#include <async/trap.h>
+#include <trap/trap.h>
 #include <hal/timer.h>
 #include <mm/vm.h>
 #include <mm/kalloc.h>

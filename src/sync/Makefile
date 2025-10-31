@@ -1,0 +1,1 @@
+LOCAL_C_SRCS += spinlock.c

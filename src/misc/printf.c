@@ -35,7 +35,7 @@
 #include <hal/sbi.h>
 
 #include <misc/printf.h>
-#include <async/spinlock.h>
+#include <sync/spinlock.h>
 
 // define this globally (e.g. gcc -DPRINTF_INCLUDE_CONFIG_H ...) to include the
 // printf_config.h header file

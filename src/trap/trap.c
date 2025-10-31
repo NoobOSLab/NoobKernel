@@ -1,4 +1,4 @@
-#include <async/trap.h>
+#include <trap/trap.h>
 #include <task/sched.h>
 #include <misc/log.h>
 

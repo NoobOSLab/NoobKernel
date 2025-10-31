@@ -3,7 +3,7 @@
 
 #include <misc/list.h>
 #include <misc/stddef.h>
-#include <async/spinlock.h>
+#include <sync/spinlock.h>
 
 #define PROC_UNUSED 0
 #define PROC_EMBRYO 1

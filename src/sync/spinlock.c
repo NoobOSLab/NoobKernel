@@ -1,5 +1,5 @@
-#include <async/spinlock.h>
-#include <async/trap.h>
+#include <sync/spinlock.h>
+#include <trap/trap.h>
 
 void spinlock_acquire(spinlock_t *lock)
 {
