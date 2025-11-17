@@ -1,6 +1,7 @@
 #include <mm/pm.h>
 #include <misc/list.h>
-#include <mm/slab.h>
+#include <mm/early.h>
+#include <mm/kalloc.h>
 #include <mm/buddy.h>
 #include <misc/log.h>
 #include <misc/errno.h>
@@ -57,12 +58,12 @@ static int pm_pages_init()
 		}
 	}
 
-	// 设置早期slab页面属性
-	for (uintptr_t addr = EARLY_SLAB_BASE; addr < EARLY_SLAB_END;
+	// 设置early heap页面属性
+	for (uintptr_t addr = EARLY_HEAP_BASE; addr < EARLY_HEAP_END;
 	     addr += PAGE_SIZE) {
 		int index = addr2index(addr);
 		if (index != -1) {
-			pages[index].flags = PM_STATIC | PM_SLAB;
+			pages[index].flags = PM_STATIC;
 		} else {
 			return -EINVAL;
 		}
@@ -90,27 +91,27 @@ void print_pm_layout()
 	printf("\x1b[92mphysical memory layout:\n");
 	printf("  SBI        [%p - %p]\n", SBI_BASE, KERNEL_BASE);
 	printf("  KERNEL     [%p - %p]\n", KERNEL_BASE, KERNEL_END);
-	printf("  EARLY SLAB [%p - %p]\n", EARLY_SLAB_BASE, EARLY_SLAB_END);
+	printf("  EARLY HEAP [%p - %p]\n", EARLY_HEAP_BASE, EARLY_HEAP_END);
 	printf("  BUDDY      [%p - %p]\n", BUDDY_SYSTEM_BASE, BUDDY_SYSTEM_END);
 	printf("\x1b[0m");
 }
 
 static int collect_free_pages()
 {
-	INIT_LIST_HEAD(&page_free_list);
-	// 遍历所有页面，将空闲页面添加到free_pages列表
-	for (size_t i = 0; i < PAGE_NUM; i++) {
-		if (pages[i].refs == 0 && !(pages[i].flags & PM_STATIC)) {
-			single_free_pages++;
-			struct page_list *new_page =
-				slab_alloc(sizeof(struct page_list));
-			if (new_page == NULL) {
-				return -ENOMEM;
-			}
-			new_page->addr = index2addr(i);
-			list_add(&new_page->list, &page_free_list);
-		}
-	}
+	// INIT_LIST_HEAD(&page_free_list);
+	// // 遍历所有页面，将空闲页面添加到free_pages列表
+	// for (size_t i = 0; i < PAGE_NUM; i++) {
+	// 	if (pages[i].refs == 0 && !(pages[i].flags & PM_STATIC)) {
+	// 		single_free_pages++;
+	// 		struct page_list *new_page =
+	// 			slab_alloc(sizeof(struct page_list));
+	// 		if (new_page == NULL) {
+	// 			return -ENOMEM;
+	// 		}
+	// 		new_page->addr = index2addr(i);
+	// 		list_add(&new_page->list, &page_free_list);
+	// 	}
+	// }
 	return 0;
 }
 
@@ -120,13 +121,13 @@ int pm_init()
 	if (ret)
 		return ret;
 
-	ret = slab_init();
-	if (ret)
-		return ret;
+	early_init();
 
 	ret = buddy_init();
 	if (ret)
 		return ret;
+
+	kalloc_init();
 
 	ret = collect_free_pages();
 	if (ret)
@@ -134,6 +135,7 @@ int pm_init()
 
 	infof("Free Pages: %zu, Usage: %u%%", get_free_pages_num(),
 	      100 - get_free_pages_num() * 100ULL / PAGE_NUM);
+
 	return 0;
 }
 
@@ -159,45 +161,47 @@ void *page2addr(struct page *page)
 
 void *page_alloc(u8 flags)
 {
-	if (list_empty(&page_free_list)) {
-		return NULL; // 没有空闲页面
-	}
+	// if (list_empty(&page_free_list)) {
+	// 	return NULL; // 没有空闲页面
+	// }
 
-	struct page_list *page_entry =
-		list_first_entry(&page_free_list, struct page_list, list);
-	list_del(&page_entry->list);
-	uintptr_t addr = page_entry->addr;
-	slab_free(page_entry);
+	// struct page_list *page_entry =
+	// 	list_first_entry(&page_free_list, struct page_list, list);
+	// list_del(&page_entry->list);
+	// uintptr_t addr = page_entry->addr;
+	// slab_free(page_entry);
 
-	int index = addr2index(addr);
-	if (index == -1) {
-		return NULL;
-	}
-	pages[index].flags = flags;
-	single_free_pages--;
+	// int index = addr2index(addr);
+	// if (index == -1) {
+	// 	return NULL;
+	// }
+	// pages[index].flags = flags;
+	// single_free_pages--;
 
-	return (void *)addr;
+	// return (void *)addr;
+	panic("calling unimplemented function");
 }
 
 int page_free(void *addr)
 {
-	if (addr == NULL) {
-		return -EINVAL;
-	}
+	// if (addr == NULL) {
+	// 	return -EINVAL;
+	// }
 
-	int index = addr2index((uintptr_t)addr);
-	if (index == -1 || pages[index].refs != 0 || pages[index].flags) {
-		return -EINVAL;
-	}
-	struct page_list *new_page = slab_alloc(sizeof(struct page_list));
-	if (new_page == NULL) {
-		return -ENOMEM; // 内存分配失败
-	}
-	single_free_pages++;
-	pages[index].flags = 0;
-	new_page->addr = (uintptr_t)addr;
-	list_add(&new_page->list, &page_free_list); // 将页面重新加入空闲列表
-	return 0;
+	// int index = addr2index((uintptr_t)addr);
+	// if (index == -1 || pages[index].refs != 0 || pages[index].flags) {
+	// 	return -EINVAL;
+	// }
+	// struct page_list *new_page = slab_alloc(sizeof(struct page_list));
+	// if (new_page == NULL) {
+	// 	return -ENOMEM; // 内存分配失败
+	// }
+	// single_free_pages++;
+	// pages[index].flags = 0;
+	// new_page->addr = (uintptr_t)addr;
+	// list_add(&new_page->list, &page_free_list); // 将页面重新加入空闲列表
+	// return 0;
+	panic("calling unimplemented function");
 }
 
 size_t get_free_pages_num()

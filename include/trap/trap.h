@@ -1,5 +1,5 @@
-#ifndef __ASYNC_TRAP_H__
-#define __ASYNC_TRAP_H__
+#ifndef __TRAP_TRAP_H__
+#define __TRAP_TRAP_H__
 
 #include <misc/stddef.h>
 #include <hal/riscv.h>
@@ -75,4 +75,4 @@ void restore_intr(u64 old);
 
 int trap_init();
 
-#endif // __ASYNC_TRAP_H__
+#endif // __TRAP_TRAP_H__

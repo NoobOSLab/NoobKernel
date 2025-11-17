@@ -19,7 +19,7 @@ int test_thread(void *arg)
 	int id = *(int *)arg;
 	for (int i = 0; i < 10 + id; i++) {
 		struct proc *p = thiscpu()->proc;
-		infof("%s %d: %d", p->comm, id, i);
+		infof("%s(%d) %d: %d", p->comm, p->pid, id, i);
 		// 模拟工作
 		for (volatile int j = 0; j < 10000000; j++)
 			;
@@ -41,7 +41,7 @@ void main(u64 hartid, void *_)
 	if (hartid == 0) {
 		clear_bss();
 		init_cpu(hartid);
-		infof("Hello world on cpu: %d", thiscpu()->id);
+		infof("Hello world on cpu: %d", r_tp());
 		print_pm_layout();
 		pm_init();
 		trap_init();

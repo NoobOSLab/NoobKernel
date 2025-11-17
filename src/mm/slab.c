@@ -1,3 +1,4 @@
+#include "sync/spinlock.h"
 #include <mm/slab.h>
 #include <config.h>
 #include <misc/stdbool.h>
@@ -9,247 +10,247 @@
 #include <mm/pm.h>
 #include <misc/list.h>
 #include <mm/kalloc.h>
+#include <misc/complier.h>
 
 extern bool buddy_inited;
-bool slab_locked = false; // 是否锁定slab分配器
-
 const u16 SLAB_MAGIC = 0x51AB; // 魔数，用于验证slab的有效性
-static struct list_head slab_free_list[SLAB_MAX_ORDER - SLAB_MIN_ORDER + 1];
+#if 0
+#define slab_log(fmt, ...) infof("slab: " fmt, ##__VA_ARGS__)
+#else
+#define slab_log(fmt, ...) dummy(0, ##__VA_ARGS__)
+#endif
+struct slab {
+	struct list_head list;
+	struct kmem_cache *kmem;
+	u32 total;
+	u32 free;
+	u32 offset;
+	u16 magic;
+	u8 bitmap[];
+};
 
-// (x + 7) / 8 + sizeof(struct slab) + (1 << order) * x = SLAB_BLOB_SIZE
-// x + 7 + 8 * (1 << order) * x = 8 * (SLAB_BLOB_SIZE - sizeof(struct slab))
-// x = (8 * (SLAB_BLOB_SIZE - sizeof(struct slab)) - 7) / (8 * (1 << order) + 1)
-static size_t object_num(u8 order)
+static u32 object_num(u32 obj_size)
 {
-	if (order < SLAB_MIN_ORDER || order > SLAB_MAX_ORDER) {
-		return 0;
-	}
-	size_t D = 8 * (1 << order) + 1;
+	size_t D = 8 * obj_size + 1;
 	size_t N = 8 * (SLAB_BLOB_SIZE - sizeof(struct slab)) - 7;
-	return N / D;
+	return (u32)(N / D);
 }
 
-int slab_init()
-{
-	int i = 0, ret;
-	for (i = SLAB_MIN_ORDER; i <= SLAB_MAX_ORDER; i++) {
-		INIT_LIST_HEAD(&slab_free_list[i - SLAB_MIN_ORDER]);
-	}
-	i = 0;
-	for (uintptr_t p = EARLY_SLAB_BASE; p < EARLY_SLAB_END;
-	     p += SLAB_BLOB_SIZE) {
-		// tracef("slab_init: creating slab at %p", (void *)p);
-		ret = slab_create((void *)p,
-				  SLAB_MIN_ORDER + i % (SLAB_MAX_ORDER -
-							SLAB_MIN_ORDER + 1));
-		i++;
-		if (ret < 0)
-			return ret;
-	}
-	return 0;
-}
+static inline bool slab_empty(struct slab *s) { return (s->total == s->free); }
 
-int slab_create(void *addr, u8 order)
+// 上层确保alloc_size对指令宽度对齐
+static void slab_init(struct kmem_cache *kmem, void *blob)
 {
-	if (addr == NULL || order < SLAB_MIN_ORDER || order > SLAB_MAX_ORDER ||
-	    !SLAB_ALIGNED(addr)) {
-		return -EINVAL;
-	}
 	for (uintptr_t p = 0; p < SLAB_BLOB_SIZE; p += PAGE_SIZE) {
-		struct page *page = addr2page((void *)(p + (uintptr_t)addr));
+		struct page *page = addr2page((void *)(p + (uintptr_t)blob));
 		page->flags |= PM_SLAB;
 	}
-	struct slab *s = (struct slab *)addr;
-	u32 total = object_num(order);
-	u32 bitmap_size = ALIGN_UP(object_num(order), 8) / 8; // 位图大小/Bytes
-	u32 offset = (1 << order) *
-		     (SLAB_BLOB_SIZE / (1 << order) - object_num(order));
-	tracef("slab_create: creating slab at %p with order %u, total %u, offset %u, bitmap size %u",
-	       addr, order, total, offset, bitmap_size);
+	struct slab *s = blob;
+	u32 total = object_num(kmem->alloc_size);
+	u32 bitmap_size = ALIGN_UP(total, 8) / 8;
+	u32 offset =
+	    ALIGN_UP(sizeof(struct slab) + bitmap_size, kmem->obj_size);
 	*s = (struct slab){
-		.total = total,
-		.free = total,
-		.offset = offset,
-		.order = order,
-		.magic = SLAB_MAGIC,
+	    .kmem = kmem,
+	    .total = total,
+	    .free = total,
+	    .offset = offset,
+	    .magic = SLAB_MAGIC,
 	};
-	memset(s->bitmap, 0, bitmap_size); // 初始化位图为0
-	list_add_tail(&s->list, &slab_free_list[order - SLAB_MIN_ORDER]);
-	tracef("slab_create: adding slab %p with order %u", s, order);
-	return 0;
+	memset(s->bitmap, 0, bitmap_size);
+	list_add_tail(
+	    &s->list,
+	    &kmem->slabs_partial); // 这里虽然全空，但是直接放到可用链表
+	slab_log("inited %p - %p", blob, blob + SLAB_BLOB_SIZE);
 }
 
-int slab_destroy(void *addr)
+static void slab_destroy(struct slab *s)
 {
-	if (addr == NULL || !SLAB_ALIGNED(addr) ||
-	    ((uintptr_t)addr >= EARLY_SLAB_BASE &&
-	     (uintptr_t)addr < EARLY_SLAB_END)) {
-		return -EINVAL;
+	void *blob = s;
+	for (uintptr_t p = 0; p < SLAB_BLOB_SIZE; p += PAGE_SIZE) {
+		struct page *page = addr2page((void *)((uintptr_t)blob + p));
+		if (page)
+			page->flags &= ~PM_SLAB;
+		else
+			panic("invalid addr in slab_destroy: %p", blob);
 	}
-	struct slab *s = (struct slab *)addr;
-	if (s->magic != SLAB_MAGIC) {
-		return -EINVAL; // 检查魔数
-	}
-	if (s->free != s->total) {
-		return -EBUSY; // 不能释放未全部释放的slab
-	}
-	if (s->order < SLAB_MIN_ORDER || s->order > SLAB_MAX_ORDER) {
-		return -EINVAL; // 无效的阶数
-	}
+
 	s->magic = 0;
 	list_del(&s->list);
-	for (uintptr_t p = 0; p < SLAB_BLOB_SIZE; p += PAGE_SIZE) {
-		struct page *page = addr2page((void *)(p + (uintptr_t)addr));
-		page->flags &= ~PM_SLAB;
+	buddy_free(blob);
+}
+
+static void *slab_alloc(struct slab *s)
+{
+	s->free--;
+	if (s->free == 0) {
+		list_move(&s->list, &s->kmem->slabs_full);
 	}
+	for (u32 i = 0; i < s->total; i++) {
+		if ((s->bitmap[i / 8] & (1 << (i % 8))) == 0) {
+			s->bitmap[i / 8] |= (1 << (i % 8));
+			slab_log("%s allocated: %p", s->kmem->name,
+				 (void *)((uintptr_t)s + s->offset +
+					  i * s->kmem->alloc_size));
+			return (void *)((uintptr_t)s + s->offset +
+					i * s->kmem->alloc_size);
+		}
+	}
+	panic("slab meta data error");
+}
+
+// 上层确保addr属于slab内存，且s->kmem有效
+static void slab_free(void *addr)
+{
+	struct slab *s = (void *)SLAB_ALIGN_DOWN(addr);
+	if (s->magic != SLAB_MAGIC)
+		panic("trying free %p that doesn't belong to a slab", addr);
+
+	u32 obj_offset = (uintptr_t)addr - (uintptr_t)s;
+	if (obj_offset < s->offset)
+		panic("trying free %p belongs to a slab's meta data", addr);
+
+	u32 i = (obj_offset - s->offset) / s->kmem->alloc_size;
+	if (i >= s->total)
+		panic("trying free out-bounded block at %p in slab", addr);
+
+	if ((s->bitmap[i / 8] & (1 << (i % 8))) == 0) {
+		warnf("double free %p in a slab", addr);
+		return;
+	}
+
+	if (s->free == s->total)
+		panic("meta data error in slab");
+
+	if (s->free == 0) {
+		list_move(&s->list, &s->kmem->slabs_partial);
+	}
+	s->bitmap[i / 8] &= ~(1 << (i % 8));
+	s->free++;
+	slab_log("%s freed %p", s->kmem->name, addr);
+}
+
+int kmem_cache_init(struct kmem_cache *kmem, const char *name, size_t obj_size,
+		    bool with_initial_alloc)
+{
+	if (unlikely(!kmem))
+		panic("null pointer in %s", __func__);
+	kmem->alloc_size = ALIGN_UP(obj_size, 8);
+	kmem->obj_size = obj_size;
+	kmem->total = 0;
+	kmem->free = 0;
+	kmem->low = object_num(kmem->alloc_size);
+	kmem->high = 2 * kmem->low;
+	kmem->name = name;
+	kmem->expanding = false;
+	INIT_LIST_HEAD(&kmem->slabs_free);
+	INIT_LIST_HEAD(&kmem->slabs_full);
+	INIT_LIST_HEAD(&kmem->slabs_partial);
+	// TODO spinlock init
+	if (!with_initial_alloc)
+		return 0;
+	if (!buddy_inited)
+		panic("trying create slab without buddy inited");
+	struct slab *s = buddy_alloc(SLAB_BLOB_SIZE);
+	if (!s)
+		return -ENOMEM;
+	slab_log("%s: expanded at %p", kmem->name, s);
+	spinlock_acquire(&kmem->lock);
+	slab_init(kmem, s);
+	kmem->total += s->total;
+	kmem->free += s->free;
+	spinlock_release(&kmem->lock);
 	return 0;
 }
 
-void *slab_alloc(size_t size)
+void kmem_cache_register(struct kmem_cache *kmem)
 {
-	if (size == 0 || size > (1 << SLAB_MAX_ORDER)) {
+	if (unlikely(!kmem))
+		panic("null pointer in %s", __func__);
+}
+
+void *kmem_cache_alloc(struct kmem_cache *kmem)
+{
+	if (unlikely(!kmem))
+		panic("null pointer in %s", __func__);
+	struct slab *slab;
+	spinlock_acquire(&kmem->lock);
+	// 检查余量是否充足
+	if (!kmem->expanding && kmem->free < kmem->low) {
+		// 检查free链表中是否有还未回收的slab
+		if (!list_empty(&kmem->slabs_free)) {
+			// 存在未回收slab,直接移入partial
+			slab = list_first_entry(&kmem->slabs_free, struct slab,
+						list);
+			list_move(&slab->list, &kmem->slabs_partial);
+			kmem->total += slab->total;
+			kmem->free += slab->free;
+		} else {
+			// 不存在未回收slab,尝试从buddy分配
+			kmem->expanding = true;
+			slab = buddy_alloc(SLAB_BLOB_SIZE);
+			kmem->expanding = false;
+			if (!slab) {
+				// buddy分配失败
+				if (likely(kmem->free > 0)) {
+					// 如果暂时还有可用object
+					slab_log(
+					    "%s free objects num dangerously "
+					    "low",
+					    kmem->name);
+				} else {
+					// OOM
+					warnf("no avaliable object in %s",
+					      kmem->name);
+					spinlock_release(&kmem->lock);
+					return NULL;
+				}
+			} else {
+				slab_log("%s: expanded at %p", kmem->name,
+					 slab);
+				slab_init(kmem, slab);
+				kmem->total += slab->total;
+				kmem->free += slab->free;
+			}
+		}
+	}
+
+	if (unlikely(kmem->free == 0)) {
+		warnf("no avaliable object in %s", kmem->name);
+		spinlock_release(&kmem->lock);
 		return NULL;
 	}
-	u8 order = log2_ceil(size);
-	if (order < SLAB_MIN_ORDER) {
-		order = SLAB_MIN_ORDER;
-	}
-	tracef("slab_alloc: requested size %u, calculated order %d", size,
-	       order);
 
-	struct list_head *p;
-	struct slab *s;
-	void *addr = NULL;
-	list_for_each (p, &slab_free_list[order - SLAB_MIN_ORDER]) {
-		s = list_entry(p, struct slab, list);
-		if (s->free == 0)
-			continue;
-		for (u32 i = 0; i < s->total; i++) {
-			if ((s->bitmap[i / 8] & (1 << (i % 8))) == 0) {
-				s->bitmap[i / 8] |= (1 << (i % 8));
-				tracef("slab_alloc: allocated block %d in slab at %p for order %d",
-				       i, s, order);
-				s->free--;
-				addr = (void *)((uintptr_t)s + s->offset +
-						i * (0x1 << order));
-				tracef("slab_alloc: returning address %p for order %d",
-				       addr, order);
-				goto out;
-			}
-		}
-	}
-out:
-	if (p->next == &slab_free_list[order - SLAB_MIN_ORDER] && buddy_inited &&
-	    !slab_locked) {
-		slab_locked = true;
-		tracef("slab_alloc: slab at %p with order %u is dangerously low"
-		       " on free blocks (%d left), triggering buddy allocation",
-		       s, s->order, s->free);
-		void *new_slab = buddy_alloc(SLAB_BLOB_SIZE);
-		if (new_slab == NULL) {
-			infof("slab_alloc: buddy_alloc failed for new slab");
-		} else {
-			int ret = slab_create(new_slab, order);
-
-			if (ret < 0) {
-				infof("slab_alloc: slab_create failed for new"
-				      "slab at %p with order %d",
-				      new_slab, order);
-				buddy_free(new_slab);
-			}
-		}
-		slab_locked = false;
-	}
-	return addr;
+	slab = list_first_entry(&kmem->slabs_partial, struct slab, list);
+	void *mem = slab_alloc(slab);
+	kmem->free--;
+	spinlock_release(&kmem->lock);
+	return mem;
 }
 
-int slab_free(void *ptr)
+// 上层确保地址合理，且对应page有PM_SLAB标志
+void kmem_cache_free(void *addr)
 {
-	if (ptr == NULL) {
-		errorf("slab_free: null pointer");
-		return -EINVAL;
-	}
-
-	struct slab *s = (struct slab *)(SLAB_ALIGN_DOWN((uintptr_t)ptr));
-	if (s->magic != SLAB_MAGIC) {
-		warnf("slab_free: invalid magic number at %p", s);
-		return -EINVAL; // 检查魔数
-	}
-	if (s->free == s->total) {
-		warnf("slab_free: slab at %p is already fully released", s);
-		return -EBUSY; // 已经全部释放
-	}
-	int i = ((uintptr_t)ptr - (uintptr_t)s - s->offset) / (1 << s->order);
-	if (i < s->total && s->bitmap[i / 8] & (1 << (i % 8))) {
-		s->bitmap[i / 8] &= ~(1 << (i % 8)); // 清除位图
-		s->free++;
-	} else
-		return -EINVAL;
-
-	if (s->total == s->free) {
-		bool allow_destroy = false;
-		struct slab *t;
-		struct list_head *p, *n;
-		list_for_each_safe (p, n,
-				    &slab_free_list[s->order - SLAB_MIN_ORDER]) {
-			t = list_entry(p, struct slab, list);
-			if (t->free == t->total) {
-				if (allow_destroy)
-					slab_destroy(t);
-				else
-					allow_destroy = true;
-			}
-		}
-	}
-
-	return 0; // 成功释放
+	struct slab *slab = (void *)SLAB_ALIGN_DOWN(addr), *n;
+	struct kmem_cache *kmem = slab->kmem;
+	spinlock_acquire(&kmem->lock);
+	slab_free(addr);
+	kmem->free++;
+	spinlock_release(&kmem->lock);
 }
 
-void slab_print_free_list(u8 order)
+void kmem_cache_flush(struct kmem_cache *kmem)
 {
-	const int colors[] = { 92, 95, 96 };
-	const int n = ARRAY_SIZE(colors);
-	if(order < SLAB_MIN_ORDER || order > SLAB_MAX_ORDER)
+	if (unlikely(!kmem))
+		panic("null pointer in %s", __func__);
+	spinlock_acquire(&kmem->lock);
+	if (kmem->free < kmem->high)
 		return;
-	struct list_head *p;
-	struct slab *s;
-	printf("\x1b[%dm --- order: %d --- \n", colors[order % n], order);
-	list_for_each (p, &slab_free_list[order - SLAB_MIN_ORDER]) {
-		s = list_entry(p, struct slab, list);
-		printf("  Addr: %p, Total: %u, Free: %u, Offset: %u\n", s,
-		       s->total, s->free, s->offset);
+	struct slab *s, *n;
+	list_for_each_entry_safe(s, n, &kmem->slabs_partial, list)
+	{
+		if (slab_empty(s))
+			list_move(&s->list, &kmem->slabs_free);
 	}
-	printf("\x1b[0m");
+	spinlock_release(&kmem->lock);
 }
-
-void slabs_print()
-{
-	for (int i = SLAB_MIN_ORDER; i <= SLAB_MAX_ORDER; i++) {
-		slab_print_free_list(i);
-	}	
-}
-
-void slab_test()
-{
-	for (int order = SLAB_MIN_ORDER; order <= SLAB_MAX_ORDER; order++) {
-		void **addr = (void *)kcalloc(10000, 8);
-		for (int i = 0; i < 10000; i++) {
-			addr[i] = slab_alloc(1 << order);
-			if (addr[i] == NULL) {
-				break;
-			}
-		}
-		infof("slab_test: allocated %d blocks of order %d", 10000,
-		       order);
-		for (int i = 0; i < 10000; i++) {
-			if (addr[i] != NULL) {
-				slab_free(addr[i]);
-			} else {
-				break;
-			}
-		}
-		infof("slab_test: freed %d blocks of order %d", 10000, order);
-		kfree(addr);
-	}
-	infof("slab test finished");
-};

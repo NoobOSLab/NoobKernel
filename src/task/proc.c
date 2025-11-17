@@ -4,32 +4,56 @@
 #include <mm/kalloc.h>
 #include <mm/pagetable.h>
 #include <mm/vma.h>
-#include <misc/complier.h>
+#include <sync/atomic.h>
 
 extern pagetable_t kpagetable;
 
 static struct cpu cpus[CPU_NUM];
 static char dummy_idle_stack[8] __attribute__((aligned(16)));
 extern void idle_loop(void);
-pid_t next_pid = 1;
+static atomic64_t next_pid = ATOMIC64_INIT(PID_MIN);
 
 pid_t alloc_pid(void)
 {
-	return atomic_add(&next_pid, 1);
+	int64_t current;
+	int pid;
+
+	do {
+		current = atomic64_read(&next_pid);
+
+		if (current > PID_MAX) {
+			// 理论上几乎不可能发生（需分配 21 亿次）
+			// 可选择 panic、回绕或返回错误
+			// 这里简单回绕到 PID_MIN
+			current = atomic64_cmpxchg(&next_pid, current, PID_MIN);
+			// 重试
+			continue;
+		}
+
+		// 尝试将 next_pid 从 current 增加到 current+1
+		int64_t new_val = current + 1;
+		if (atomic64_cmpxchg(&next_pid, current, new_val) == current) {
+			pid = (int)
+			    current; // safe: current <= PID_MAX = INT32_MAX
+			break;
+		}
+		// 否则重试（其他 CPU 修改了 next_pid）
+
+	} while (1);
+
+	return pid;
 }
 
 void init_cpu(u64 id)
 {
-	cpus[id].id = id;
 	cpus[id].ctx.ra = (uintptr_t)idle_loop;
 	cpus[id].ctx.sp =
 	    (uintptr_t)(dummy_idle_stack + sizeof(dummy_idle_stack));
 	cpus[id].proc = NULL;
-	// 将cpu结构体地址写入tp寄存器，方便快速访问
-	w_tp((uintptr_t)&cpus[id]);
+	w_tp(id);
 }
 
-inline struct cpu *thiscpu() { return (void *)r_tp(); }
+inline struct cpu *thiscpu() { return &cpus[r_tp()]; }
 
 struct proc *alloc_proc()
 {

@@ -1,14 +1,25 @@
 #include <mm/buddy.h>
 #include <misc/list.h>
 #include <misc/math.h>
-#include <mm/slab.h>
+#include <mm/kalloc.h>
+#include <mm/early.h>
 #include <misc/errno.h>
 #include <mm/pm.h>
 #include <config.h>
 #include <misc/log.h>
+#include <misc/complier.h>
+#include <sync/spinlock.h>
+
+extern bool kalloc_inited;
 
 bool buddy_inited = false;
 size_t buddy_free_pages = 0;
+
+#if 0
+#define buddy_log("buddy: " fmt, ##__VA_ARGS__)
+#else
+#define buddy_log(fmt, ...) dummy(0, ##__VA_ARGS__)
+#endif
 
 struct mem_block {
 	void *start;
@@ -16,7 +27,7 @@ struct mem_block {
 };
 
 static struct list_head buddy_free_list[BUDDY_MAX_ORDER + 1];
-
+static spinlock_t lock;
 static inline u8 size2order(size_t size)
 {
 	return (u8)(log2_ceil(size) - PAGE_SHIFT);
@@ -25,6 +36,23 @@ static inline u8 size2order(size_t size)
 static inline void *get_buddy_addr(void *addr, u8 order)
 {
 	return (void *)((uintptr_t)addr ^ (PAGE_SIZE << order));
+}
+
+static struct mem_block *alloc_mem_block()
+{
+	if (likely(kalloc_inited)) {
+		return kmalloc(sizeof(struct mem_block));
+	}
+	return early_alloc(sizeof(struct mem_block));
+}
+
+static void free_mem_block(struct mem_block *ptr)
+{
+	if (unlikely(is_early_mem(ptr))) {
+		(void)ptr;
+		return;
+	}
+	kfree(ptr);
 }
 
 int buddy_init()
@@ -38,10 +66,9 @@ int buddy_init()
 		if (pg == NULL) {
 			return -EINVAL;
 		}
-		struct mem_block *t = slab_alloc(sizeof(struct mem_block));
-		if (t == NULL) {
-			return -ENOMEM;
-		}
+		struct mem_block *t = alloc_mem_block();
+		if (t == NULL)
+			panic("no enough early heap memory for buddy init");
 		t->start = (void *)p;
 		pg->private = t;
 		pg->order = BUDDY_MAX_ORDER;
@@ -52,7 +79,6 @@ int buddy_init()
 	return 0;
 };
 
-
 static void merge_blocks(u8 order)
 {
 	struct list_head *p = NULL, *n;
@@ -60,15 +86,16 @@ static void merge_blocks(u8 order)
 		if (list_empty(&buddy_free_list[i]))
 			continue;
 
-		//这一层时间复杂度大概为O(nlogn)，可以优化成O(n)
+		// 这一层时间复杂度大概为O(nlogn)，可以优化成O(n)
 		while (p != &buddy_free_list[i]) {
 			struct mem_block *block, *buddy_block = NULL;
 			struct page *page, *buddy_page;
-			list_for_each_safe (p, n, &buddy_free_list[i]) {
+			list_for_each_safe(p, n, &buddy_free_list[i])
+			{
 				block = list_entry(p, struct mem_block, list);
 				page = addr2page(block->start);
-				buddy_page = addr2page(get_buddy_addr(
-					block->start, page->order));
+				buddy_page = addr2page(
+				    get_buddy_addr(block->start, page->order));
 				if (buddy_page->private == NULL ||
 				    buddy_page->order != i)
 					continue;
@@ -80,14 +107,15 @@ static void merge_blocks(u8 order)
 				list_del(&buddy_block->list);
 				if ((uintptr_t)block->start >
 				    (uintptr_t)buddy_block->start) {
-					slab_free(block);
+					free_mem_block(block);
 					page->private = NULL;
 					page->order = BUDDY_MAX_ORDER + 1;
 					buddy_page->order++;
 					list_add(&buddy_block->list,
-						 &buddy_free_list[buddy_page->order]);
+						 &buddy_free_list[buddy_page
+								      ->order]);
 				} else {
-					slab_free(buddy_block);
+					free_mem_block(buddy_block);
 					buddy_page->private = NULL;
 					buddy_page->order = BUDDY_MAX_ORDER + 1;
 					page->order++;
@@ -99,44 +127,69 @@ static void merge_blocks(u8 order)
 	}
 }
 
-static void split_blocks(u8 order)
+static void split_blocks(u8 target_order)
 {
-	for (u8 i = BUDDY_MAX_ORDER; i > order; i--) {
-		if (list_empty(&buddy_free_list[i]))
-			continue;
-		struct mem_block *block =
-			list_first_entry(&buddy_free_list[i], struct mem_block, list);
+	u8 source_order = target_order + 1;
+	while (source_order <= BUDDY_MAX_ORDER &&
+	       list_empty(&buddy_free_list[source_order])) {
+		source_order++;
+	}
+
+	if (source_order > BUDDY_MAX_ORDER) {
+		return;
+	}
+
+	for (u8 order = source_order; order > target_order; order--) {
+		struct mem_block *block = list_first_entry(
+		    &buddy_free_list[order], struct mem_block, list);
 		struct page *page = addr2page(block->start);
 
-		struct mem_block *buddy_block =
-			slab_alloc(sizeof(struct mem_block));
-		if (buddy_block == NULL) {
-			return;
+		if (page->order != order) {
+			panic("split_blocks: page->order=%u != list order=%u",
+			      page->order, order);
 		}
 
 		list_del(&block->list);
-		page->order--;
-		buddy_block->start = get_buddy_addr(block->start, page->order);
+
+		u8 new_order = order - 1;
+
+		struct mem_block *buddy_block = alloc_mem_block();
+		if (!buddy_block) {
+			panic("buddy metadata OOM in split_blocks");
+		}
+
+		page->order = new_order;
+
+		buddy_block->start = get_buddy_addr(block->start, new_order);
 		struct page *buddy_page = addr2page(buddy_block->start);
-		buddy_page->order = page->order;
+		buddy_page->order = new_order;
 		buddy_page->private = buddy_block;
-		list_add_tail(&block->list, &buddy_free_list[i - 1]);
-		list_add_tail(&buddy_block->list, &buddy_free_list[i - 1]);
+
+		list_add_tail(&block->list, &buddy_free_list[new_order]);
+		list_add_tail(&buddy_block->list, &buddy_free_list[new_order]);
 	}
+
+	return;
 }
 
 static void *buddy_alloc_inner(u8 order)
 {
 	void *addr = NULL;
 	struct mem_block *block =
-		list_first_entry(&buddy_free_list[order], struct mem_block, list);
+	    list_first_entry(&buddy_free_list[order], struct mem_block, list);
 	struct page *page = addr2page(block->start);
+	if (page->order != order)
+		panic("buddy order broken, expected: %u, actual: %u", order,
+		      page->order);
 
-	page->private = NULL;
+	page->private =
+	    NULL; // 这里把private设置为空表示此内存已不属于buddy管理
 	addr = block->start;
 	list_del(&block->list);
-	slab_free(block);
+	free_mem_block(block);
 	buddy_free_pages -= (1 << order);
+	spinlock_release(&lock);
+	buddy_log("allocated %p - %p", addr, addr + (PAGE_SIZE << order));
 	return addr;
 }
 
@@ -146,8 +199,9 @@ void *buddy_alloc(size_t size)
 		errorf("buddy_alloc: invalid size %u", size);
 		return NULL;
 	}
-
+	buddy_log("allocating size: %zu", size);
 	u8 order = size2order(size);
+	spinlock_acquire(&lock);
 	if (!list_empty(&buddy_free_list[order])) {
 		return buddy_alloc_inner(order);
 	}
@@ -161,30 +215,29 @@ void *buddy_alloc(size_t size)
 	if (!list_empty(&buddy_free_list[order])) {
 		return buddy_alloc_inner(order);
 	}
+	spinlock_release(&lock);
 	return NULL;
 }
 
-int buddy_free(void *addr)
+void buddy_free(void *addr)
 {
 	struct page *page = addr2page(addr);
-	if (page == NULL || !(page->flags & PM_BUDDY) ||
-	    page->order > BUDDY_MAX_ORDER || page->private != NULL)
-		return -EINVAL;
-
-	struct mem_block *block = slab_alloc(sizeof(struct mem_block));
+	struct mem_block *block = alloc_mem_block();
 	if (block == NULL)
-		return -ENOMEM;
+		panic("OOM during buddy free");
 
+	buddy_log("freed %p - %p", addr, addr + (PAGE_SIZE << page->order));
 	block->start = addr;
 	page->private = block;
+	spinlock_acquire(&lock);
 	buddy_free_pages += (1 << page->order);
 	list_add(&block->list, &buddy_free_list[page->order]);
-	return 0;
+	spinlock_release(&lock);
 }
 
 void buddy_print_free_list(u8 order)
 {
-	const int colors[] = { 92, 95, 96 };
+	const int colors[] = {92, 95, 96};
 	const int n = ARRAY_SIZE(colors);
 	if (order > BUDDY_MAX_ORDER)
 		return;
@@ -195,7 +248,8 @@ void buddy_print_free_list(u8 order)
 	}
 	struct list_head *p;
 	int i = 0;
-	list_for_each (p, &buddy_free_list[order]) {
+	list_for_each(p, &buddy_free_list[order])
+	{
 		if (i % 8 == 0)
 			printf("\n");
 		printf("%p ", list_entry(p, struct mem_block, list)->start);
@@ -211,23 +265,20 @@ void buddy_test(void)
 		for (int i = 0; i < 20; i++) {
 			addr[i] = buddy_alloc(PAGE_SIZE << order);
 			if (addr[i] == NULL) {
-				infof("%d: Failed to allocate block of order %d",
-				      i, order);
+				infof(
+				    "%d: Failed to allocate block of order %d",
+				    i, order);
 			} else {
-				infof("%d: Allocated block of order %d at address %p",
+				infof("%d: Allocated block of order %d at "
+				      "address %p",
 				      i, order, addr[i]);
 			}
 		}
 		for (int i = 0; i < 20; i++) {
 			if (addr[i] != NULL) {
-				int ret = buddy_free(addr[i]);
-				if (ret < 0) {
-					infof("%d: Failed to free block at address %p: %s",
-					      i, addr[i], strerror(ret));
-				} else {
-					infof("%d: Freed block at address %p",
-					      i, addr[i]);
-				}
+				buddy_free(addr[i]);
+				infof("%d: Freed block at address %p", i,
+				      addr[i]);
 			}
 		}
 	}

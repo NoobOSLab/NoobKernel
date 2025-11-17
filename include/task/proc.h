@@ -36,7 +36,6 @@ struct cpu {
 	struct context ctx;
 	u64 intr_state;
 	int intr_depth;
-	int id;
 };
 
 struct proc {

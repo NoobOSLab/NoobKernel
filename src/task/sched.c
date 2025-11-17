@@ -41,7 +41,7 @@ void sched_yield()
 		switch(p->state) {
 		case PROC_RUNNING:
 			p->state = PROC_RUNNABLE;
-			enqueue_proc(thiscpu()->id, p);
+			enqueue_proc(r_tp(), p);
 			break;
 		case PROC_ZOMBIE:
 			free_proc(p);
@@ -51,7 +51,7 @@ void sched_yield()
 			break;
 		}
 	}
-	struct proc *next = dequeue_proc(thiscpu()->id);
+	struct proc *next = dequeue_proc(r_tp());
 	if (next) {
 		next->state = PROC_RUNNING;
 		thiscpu()->proc = next;
@@ -60,7 +60,7 @@ void sched_yield()
 		else
 			context_switch(&thiscpu()->ctx, &next->ctx);
 	} else {
-		infof("cpu %d idle", thiscpu()->id);
+		infof("cpu %d idle", r_tp());
 		thiscpu()->proc = NULL;
 		context_switch(&p->ctx, &thiscpu()->ctx);
 	}

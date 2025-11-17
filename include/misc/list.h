@@ -55,6 +55,11 @@ static inline void list_del(struct list_head *entry)
 	__list_del(entry->prev, entry->next);
 }
 
+static inline void list_move(struct list_head *new, struct list_head *head){
+	list_del(new);
+	list_add(new, head);
+}
+
 // 获取包含链表节点的结构体指针
 #define list_entry(ptr, type, member)                                          \
 	((type *)((char *)(ptr)-offsetof(type, member)))

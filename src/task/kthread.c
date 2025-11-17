@@ -50,7 +50,7 @@ struct proc *kthread_create(int (*fn)(void *), void *arg, const char *name)
 	p->state = PROC_RUNNABLE;
 
 	// 5. 加入调度队列（当前 CPU）
-	enqueue_proc(thiscpu()->id, p);
+	enqueue_proc(r_tp(), p);
 
 	return p;
 }

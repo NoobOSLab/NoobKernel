@@ -8,7 +8,7 @@
 #define CACHE_LINE_SIZE 64
 
 #define TIMEBASE_FREQ 10000000UL
-#define MEM_SIZE (512 * 1024 * 1024)
+#define MEM_SIZE (128 * 1024 * 1024)
 #define PM_START (uintptr_t)0x80000000
 
 #define UART0 (uintptr_t)0x10000000

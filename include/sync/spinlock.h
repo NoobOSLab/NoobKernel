@@ -1,5 +1,5 @@
-#ifndef __ASYNC_SPINLOCK_H__
-#define __ASYNC_SPINLOCK_H__
+#ifndef __SYNC_SPINLOCK_H__
+#define __SYNC_SPINLOCK_H__
 
 #include <config.h>
 

@@ -46,14 +46,13 @@ static inline uint64_t cputime_to_ms(uint64_t cputime) {
 #define PAGE_ALIGNED(a) ALIGNED(a, PAGE_SIZE)
 #define PM_END (PM_START + MEM_SIZE)
 
-#define SLAB_MIN_ORDER 3
-#define SLAB_MAX_ORDER 11
-#define SLAB_BLOB_SIZE (MEM_SIZE / 2048)
+#define SLAB_MAX_OBJ_SIZE (8192)
+#define SLAB_BLOB_SIZE (64 * 1024)
 #define SLAB_ALIGN_UP(a) ALIGN_UP(a, SLAB_BLOB_SIZE)
 #define SLAB_ALIGN_DOWN(a) ALIGN_DOWN(a, SLAB_BLOB_SIZE)
 #define SLAB_ALIGNED(a) ALIGNED(a, SLAB_BLOB_SIZE)
 
-#define EARLY_SLAB_SIZE (SLAB_BLOB_SIZE * 16)
+#define EARLY_HEAP_SIZE (4 * 1024)
 
 #define BUDDY_MAX_ORDER 11
 #define BUDDY_BLOB_SIZE ((1ULL << BUDDY_MAX_ORDER) * PAGE_SIZE)
@@ -69,12 +68,15 @@ static inline uint64_t cputime_to_ms(uint64_t cputime) {
 #define KERNEL_BASE PAGE_ALIGN_DOWN((uintptr_t)skernel)
 #define KERNEL_END PAGE_ALIGN_UP((uintptr_t)ekernel)
 
-#define EARLY_SLAB_BASE SLAB_ALIGN_UP(KERNEL_END + PAGE_SIZE)
-#define EARLY_SLAB_END (EARLY_SLAB_BASE + EARLY_SLAB_SIZE)
+#define EARLY_HEAP_BASE PAGE_ALIGN_UP(KERNEL_END + PAGE_SIZE)
+#define EARLY_HEAP_END (EARLY_HEAP_BASE + EARLY_HEAP_SIZE)
 
-#define BUDDY_SYSTEM_BASE BUDDY_ALIGN_UP(EARLY_SLAB_END)
+#define BUDDY_SYSTEM_BASE BUDDY_ALIGN_UP(EARLY_HEAP_END)
 #define BUDDY_SYSTEM_END (BUDDY_ALIGN_DOWN(PM_END))
 #define BUDDY_BLOB_NUM                                                         \
   ((BUDDY_SYSTEM_END - BUDDY_SYSTEM_BASE) / BUDDY_BLOB_SIZE)
+
+#define PID_MIN 2
+#define PID_MAX INT32_MAX
 
 #endif
