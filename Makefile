@@ -1,4 +1,4 @@
-.PHONY: all clean user run debug test .FORCE docs
+.PHONY: all clean user run debug vs-debug test .FORCE docs
 
 # 工具链设置
 TOOL_PREFIX = riscv64-unknown-elf-
@@ -7,7 +7,7 @@ AS = $(TOOL_PREFIX)gcc
 LD = $(TOOL_PREFIX)ld
 OBJCOPY = $(TOOL_PREFIX)objcopy
 OBJDUMP = $(TOOL_PREFIX)objdump
-GDB = /opt/riscv-gdb/bin/$(TOOL_PREFIX)gdb
+GDB = gdb-multiarch
 PY = python3
 CP = cp
 QEMU = qemu-system-riscv64
@@ -49,7 +49,7 @@ GDB_PORT = 15234
 QEMU_FLAGS = \
 	-nographic \
 	-machine virt \
-	-m 512M \
+	-m 128M \
 	-kernel $(TARGET)
 QEMUGDB = -gdb tcp::$(GDB_PORT)
 
@@ -121,3 +121,7 @@ debug: $(TARGET)
 	@while ! nc -zv localhost $(GDB_PORT) 2>/dev/null; do sleep 0.5; done
 	@echo "GDB     connecting..."
 	@$(GDB)
+
+vs-debug: $(TARGET)
+	@echo "按F5 启动vscode可视化调试"
+	@$(QEMU) $(QEMU_FLAGS) -S $(QEMUGDB)

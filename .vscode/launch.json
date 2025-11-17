@@ -1,0 +1,26 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Debug Kernel",
+			"type": "cppdbg",
+			"request": "launch",
+			"program": "${workspaceFolder}/build/QEMU/kernel",
+			"MIMode": "gdb",
+			"miDebuggerPath": "gdb-multiarch",
+			"miDebuggerServerAddress": "localhost:15234",
+			"cwd": "${workspaceFolder}",
+			"setupCommands": [
+				{
+					"text": "-enable-pretty-printing",
+					"ignoreFailures": true
+				},
+				{
+					"text": "set target remote kill-packet off",
+					"ignoreFailures": true
+				}
+			],
+			"stopAtEntry": true
+		}
+	]
+}
