@@ -16,7 +16,7 @@ bool buddy_inited = false;
 size_t buddy_free_pages = 0;
 
 #if 0
-#define buddy_log("buddy: " fmt, ##__VA_ARGS__)
+#define buddy_log(fmt, ...) infof("buddy: " fmt, ##__VA_ARGS__)
 #else
 #define buddy_log(fmt, ...) dummy(0, ##__VA_ARGS__)
 #endif
@@ -27,7 +27,7 @@ struct mem_block {
 };
 
 static struct list_head buddy_free_list[BUDDY_MAX_ORDER + 1];
-static spinlock_t lock;
+static spinlock_t lock = SPINLOCK_INITIALIZER("buddy");
 static inline u8 size2order(size_t size)
 {
 	return (u8)(log2_ceil(size) - PAGE_SHIFT);
@@ -188,20 +188,13 @@ static void *buddy_alloc_inner(u8 order)
 	list_del(&block->list);
 	free_mem_block(block);
 	buddy_free_pages -= (1 << order);
-	spinlock_release(&lock);
 	buddy_log("allocated %p - %p", addr, addr + (PAGE_SIZE << order));
 	return addr;
 }
 
-void *buddy_alloc(size_t size)
+static void *buddy_alloc_nolock(size_t size)
 {
-	if (size < PAGE_SIZE || size > BUDDY_BLOB_SIZE) {
-		errorf("buddy_alloc: invalid size %u", size);
-		return NULL;
-	}
-	buddy_log("allocating size: %zu", size);
 	u8 order = size2order(size);
-	spinlock_acquire(&lock);
 	if (!list_empty(&buddy_free_list[order])) {
 		return buddy_alloc_inner(order);
 	}
@@ -215,8 +208,22 @@ void *buddy_alloc(size_t size)
 	if (!list_empty(&buddy_free_list[order])) {
 		return buddy_alloc_inner(order);
 	}
-	spinlock_release(&lock);
 	return NULL;
+}
+
+void *buddy_alloc(size_t size)
+{
+	if (size < PAGE_SIZE || size > BUDDY_BLOB_SIZE) {
+		errorf("buddy_alloc: invalid size %u", size);
+		return NULL;
+	}
+	buddy_log("allocating size: %zu", size);
+	if (spinlock_holding(&lock))
+		return buddy_alloc_nolock(size);
+	spinlock_acquire(&lock);
+	void *addr = buddy_alloc_nolock(size);
+	spinlock_release(&lock);
+	return addr;
 }
 
 void buddy_free(void *addr)

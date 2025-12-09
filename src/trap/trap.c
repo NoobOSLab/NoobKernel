@@ -4,6 +4,7 @@
 
 extern char trampoline[], uservec[];
 extern char userret[], kernelvec[];
+extern bool sched_enabled;
 
 extern void handle_timer(void);
 extern void handle_external(void);
@@ -59,11 +60,11 @@ int trap_init()
 	return 0;
 }
 
-void kerneltrap(void)
+void kerneltrap(struct ktrapframe *ktf)
 {
-	u64 scause = r_scause();
-	u64 sepc = r_sepc();
-	u64 sstatus = r_sstatus();
+	u64 scause = ktf->scause;
+	u64 sepc = ktf->sepc;
+	u64 sstatus = ktf->sstatus;
 
 	// 检查是否为中断（scause 最高位为 1）
 	if ((scause & (1UL << 63)) == 0) {
@@ -73,7 +74,7 @@ void kerneltrap(void)
 		switch (scause) {
 		case IllegalInstruction:
 			panic("kernel illegal instruction at %p", sepc);
-		case LoadPageFault: // load page fault
+		case LoadPageFault:  // load page fault
 		case StorePageFault: // store/AMO page fault
 			panic("kernel page fault at %p, stval=%p", sepc,
 			      r_stval());
@@ -105,4 +106,7 @@ void kerneltrap(void)
 		panic("unknown kernel interrupt: irq=%d (scause=%lx)", irq,
 		      scause);
 	}
+
+	if (sched_enabled && thiscpu()->need_resched)
+		sched_yield();
 }

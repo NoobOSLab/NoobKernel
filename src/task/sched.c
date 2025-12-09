@@ -1,6 +1,7 @@
 #include <task/sched.h>
 #include <misc/list.h>
 #include <misc/log.h>
+#include <trap/trap.h>
 
 struct {
 	struct list_head queue;
@@ -9,8 +10,10 @@ struct {
 
 void init_runq()
 {
-	for (int i = 0; i < CPU_NUM; i++)
+	for (int i = 0; i < CPU_NUM; i++) {
 		INIT_LIST_HEAD(&runq[i].queue);
+		runq[i].lock = SPINLOCK_INITIALIZER("runq");
+	}
 }
 
 bool is_runq_empty(int hartid) { return list_empty(&runq[hartid].queue); }
@@ -36,32 +39,41 @@ struct proc *dequeue_proc(int hartid)
 
 void sched_yield()
 {
-	struct proc *p = thiscpu()->proc;
+	struct cpu *c = thiscpu();
+	struct proc *p = c->proc;
 	if (p) {
-		switch(p->state) {
+		switch (p->state) {
 		case PROC_RUNNING:
 			p->state = PROC_RUNNABLE;
 			enqueue_proc(r_tp(), p);
 			break;
-		case PROC_ZOMBIE:
-			free_proc(p);
-			break;
 		default:
-			// 非 RUNNING 状态无需入队
 			break;
 		}
-	}
-	struct proc *next = dequeue_proc(r_tp());
-	if (next) {
-		next->state = PROC_RUNNING;
-		thiscpu()->proc = next;
-		if (p)
-			context_switch(&p->ctx, &next->ctx);
-		else
-			context_switch(&thiscpu()->ctx, &next->ctx);
-	} else {
+	} else
+		panic("null proc pointer in %s", __func__);
+
+	thiscpu()->proc = NULL;
+	context_switch_yield(p);
+}
+
+void context_switch_yield(struct proc *old)
+{
+	struct cpu *c = thiscpu();
+	struct proc *next;
+
+	next = dequeue_proc(r_tp());
+	if (!next) {
 		infof("cpu %d idle", r_tp());
-		thiscpu()->proc = NULL;
-		context_switch(&p->ctx, &thiscpu()->ctx);
+		next = &c->idle;
 	}
+
+	spinlock_acquire(&next->lock);
+	if (next != &c->idle) {
+		next->state = PROC_RUNNING;
+	}
+	c->proc = next;
+	spinlock_release(&next->lock);
+
+	context_switch(&old->ctx, &next->ctx);
 }

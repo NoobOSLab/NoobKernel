@@ -13,27 +13,28 @@ extern char *s_bss;
 extern char *e_bss;
 
 static inline void clear_bss() { memset(s_bss, 0, e_bss - s_bss); }
+volatile bool sched_enabled = false;
 
 int test_thread(void *arg)
 {
 	int id = *(int *)arg;
-	for (int i = 0; i < 10 + id; i++) {
+	for (int i = 0; i < 10; i++) {
 		struct proc *p = thiscpu()->proc;
 		infof("%s(%d) %d: %d", p->comm, p->pid, id, i);
-		// 模拟工作
-		for (volatile int j = 0; j < 10000000; j++)
+		for (volatile u64 i = 0; i < 1000000000; i++)
 			;
-		sched_yield(); // 主动让出
 	}
 	return id;
 }
 
 void init_kthreads(void)
 {
-	int arg1 = 1, arg2 = 2;
+	static int arg1 = 1, arg2 = 2;
 
 	kthread_create(test_thread, &arg1, "thread1");
 	kthread_create(test_thread, &arg2, "thread2");
+	kthread_create(test_thread, &arg1, "thread3");
+	kthread_create(test_thread, &arg2, "thread4");
 }
 
 void main(u64 hartid, void *_)
@@ -49,6 +50,8 @@ void main(u64 hartid, void *_)
 		kvminit();
 		init_runq();
 		init_kthreads();
+		sched_enabled = true;
+		context_switch_to(&thiscpu()->idle.ctx);
 		sched_yield();
 	}
 	while (1) {

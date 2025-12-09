@@ -6,10 +6,10 @@
 #include <task/proc.h>
 
 struct trapframe {
-	/*   0 */ u64 kernel_satp; // kernel page table
-	/*   8 */ u64 kernel_sp; // top of process's kernel stack
-	/*  16 */ u64 kernel_trap; // usertrap()
-	/*  24 */ u64 epc; // saved user program counter
+	/*   0 */ u64 kernel_satp;   // kernel page table
+	/*   8 */ u64 kernel_sp;     // top of process's kernel stack
+	/*  16 */ u64 kernel_trap;   // usertrap()
+	/*  24 */ u64 epc;	     // saved user program counter
 	/*  32 */ u64 kernel_hartid; // saved kernel tp
 	/*  40 */ u64 ra;
 	/*  48 */ u64 sp;

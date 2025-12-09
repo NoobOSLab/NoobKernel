@@ -283,8 +283,6 @@ r_sp()
 	return x;
 }
 
-// read and write tp, the thread pointer, which holds
-// this core's cpu struct pointer.
 static inline u64
 r_tp()
 {
@@ -297,6 +295,20 @@ static inline void
 w_tp(u64 x)
 {
 	asm volatile("mv tp, %0" : : "r" (x));
+}
+
+static inline u64
+r_gp()
+{
+	u64 x;
+	asm volatile("mv %0, gp" : "=r" (x) );
+	return x;
+}
+
+static inline void 
+w_gp(u64 x)
+{
+	asm volatile("mv gp, %0" : : "r" (x));
 }
 
 static inline u64

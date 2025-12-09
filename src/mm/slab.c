@@ -146,7 +146,7 @@ int kmem_cache_init(struct kmem_cache *kmem, const char *name, size_t obj_size,
 	INIT_LIST_HEAD(&kmem->slabs_free);
 	INIT_LIST_HEAD(&kmem->slabs_full);
 	INIT_LIST_HEAD(&kmem->slabs_partial);
-	// TODO spinlock init
+	kmem->lock = SPINLOCK_INITIALIZER("kmemcache");
 	if (!with_initial_alloc)
 		return 0;
 	if (!buddy_inited)
@@ -155,26 +155,15 @@ int kmem_cache_init(struct kmem_cache *kmem, const char *name, size_t obj_size,
 	if (!s)
 		return -ENOMEM;
 	slab_log("%s: expanded at %p", kmem->name, s);
-	spinlock_acquire(&kmem->lock);
 	slab_init(kmem, s);
 	kmem->total += s->total;
 	kmem->free += s->free;
-	spinlock_release(&kmem->lock);
 	return 0;
 }
 
-void kmem_cache_register(struct kmem_cache *kmem)
+static void *kmem_cache_alloc_nolock(struct kmem_cache *kmem)
 {
-	if (unlikely(!kmem))
-		panic("null pointer in %s", __func__);
-}
-
-void *kmem_cache_alloc(struct kmem_cache *kmem)
-{
-	if (unlikely(!kmem))
-		panic("null pointer in %s", __func__);
 	struct slab *slab;
-	spinlock_acquire(&kmem->lock);
 	// 检查余量是否充足
 	if (!kmem->expanding && kmem->free < kmem->low) {
 		// 检查free链表中是否有还未回收的slab
@@ -202,7 +191,6 @@ void *kmem_cache_alloc(struct kmem_cache *kmem)
 					// OOM
 					warnf("no avaliable object in %s",
 					      kmem->name);
-					spinlock_release(&kmem->lock);
 					return NULL;
 				}
 			} else {
@@ -217,14 +205,27 @@ void *kmem_cache_alloc(struct kmem_cache *kmem)
 
 	if (unlikely(kmem->free == 0)) {
 		warnf("no avaliable object in %s", kmem->name);
-		spinlock_release(&kmem->lock);
 		return NULL;
 	}
 
 	slab = list_first_entry(&kmem->slabs_partial, struct slab, list);
 	void *mem = slab_alloc(slab);
 	kmem->free--;
-	spinlock_release(&kmem->lock);
+	return mem;
+}
+
+void *kmem_cache_alloc(struct kmem_cache *kmem)
+{
+	if (unlikely(!kmem))
+		panic("null pointer in %s", __func__);
+	void *mem = NULL;
+	if (spinlock_holding(&kmem->lock)) {
+		mem = kmem_cache_alloc_nolock(kmem);
+	} else {
+		spinlock_acquire(&kmem->lock);
+		mem = kmem_cache_alloc_nolock(kmem);
+		spinlock_release(&kmem->lock);
+	}
 	return mem;
 }
 
@@ -233,10 +234,15 @@ void kmem_cache_free(void *addr)
 {
 	struct slab *slab = (void *)SLAB_ALIGN_DOWN(addr), *n;
 	struct kmem_cache *kmem = slab->kmem;
-	spinlock_acquire(&kmem->lock);
-	slab_free(addr);
-	kmem->free++;
-	spinlock_release(&kmem->lock);
+	if (spinlock_holding(&kmem->lock)) {
+		slab_free(addr);
+		kmem->free++;
+	} else {
+		spinlock_acquire(&kmem->lock);
+		slab_free(addr);
+		kmem->free++;
+		spinlock_release(&kmem->lock);
+	}
 }
 
 void kmem_cache_flush(struct kmem_cache *kmem)

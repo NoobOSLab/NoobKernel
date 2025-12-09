@@ -5,11 +5,11 @@
 #include <mm/pagetable.h>
 #include <mm/vma.h>
 #include <sync/atomic.h>
+#include <misc/string.h>
 
 extern pagetable_t kpagetable;
 
 static struct cpu cpus[CPU_NUM];
-static char dummy_idle_stack[8] __attribute__((aligned(16)));
 extern void idle_loop(void);
 static atomic64_t next_pid = ATOMIC64_INIT(PID_MIN);
 
@@ -46,10 +46,18 @@ pid_t alloc_pid(void)
 
 void init_cpu(u64 id)
 {
-	cpus[id].ctx.ra = (uintptr_t)idle_loop;
-	cpus[id].ctx.sp =
-	    (uintptr_t)(dummy_idle_stack + sizeof(dummy_idle_stack));
-	cpus[id].proc = NULL;
+	struct cpu *c = &cpus[id];
+	c->need_resched = false;
+	c->idle.ctx.ra = (uintptr_t)idle_loop;
+	c->idle.ctx.sp = (uintptr_t)c->idle_stack + IDLE_STACK_SIZE;
+	c->idle.ctx.sstatus = SSTATUS_SIE;
+	c->idle.state = PROC_IDLE;
+	strcpy(c->idle.comm, "idle");
+	c->idle.parent = NULL;
+	INIT_LIST_HEAD(&c->idle.sibling);
+	c->idle.lock = SPINLOCK_INITIALIZER("idle");
+	c->proc = &c->idle;
+	w_gp((uintptr_t)&c->idle.ktf);
 	w_tp(id);
 }
 
@@ -62,6 +70,8 @@ struct proc *alloc_proc()
 		return NULL;
 
 	p->state = PROC_UNUSED;
+	p->ctx.gp = (uintptr_t)&p->ktf;
+	p->ctx.sstatus = SSTATUS_SIE;
 	return p;
 }
 

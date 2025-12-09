@@ -6,8 +6,7 @@
 
 #define DETAILED_LOG (0)
 
-static void dummy(int _, ...) {
-}
+static void dummy(int _, ...) {}
 
 #if DETAILED_LOG
 #define DETAILED_FORMAT "(%s:%d) "
@@ -119,8 +118,15 @@ enum LOG_COLOR {
 	do {                                                                   \
 		printf("\x1b[%dm[%s]" DETAILED_FORMAT fmt "\x1b[0m\n", RED,    \
 		       "PANIC" DETAILED_PARAMS, ##__VA_ARGS__);                \
-		sbi_shutdown();                                                    \
+		sbi_shutdown();                                                \
 		__builtin_unreachable();                                       \
+	} while (0)
+
+#define assert(x)                                                              \
+	do {                                                                   \
+		if (!(x))                                                      \
+			panic("dynamic assertion failed: %s:%d", __FILE__,     \
+			      __LINE__);                                       \
 	} while (0)
 
 #endif //! __MISC_LOG_H__

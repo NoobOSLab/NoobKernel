@@ -1,86 +1,102 @@
-	#
-	# interrupts and exceptions while in supervisor
-	# mode come here.
-	#
-	# push all registers, call kerneltrap(), restore, return.
-	#
-.globl kerneltrap
+# 约定：
+#   - gp = 指向当前进程的 struct ktrapframe
+#   - 不修改 sp（中断前后使用同一栈）
+#   - 所有寄存器保存/恢复通过 gp 直接寻址
+#
+.section .text
 .globl kernelvec
 .align 4
+
 kernelvec:
-	// make room to save registers.
-	addi sp, sp, -256
-	// save the registers.
-	sd ra, 0(sp)
-	sd sp, 8(sp)
-	sd gp, 16(sp)
-	sd tp, 24(sp)
-	sd t0, 32(sp)
-	sd t1, 40(sp)
-	sd t2, 48(sp)
-	sd s0, 56(sp)
-	sd s1, 64(sp)
-	sd a0, 72(sp)
-	sd a1, 80(sp)
-	sd a2, 88(sp)
-	sd a3, 96(sp)
-	sd a4, 104(sp)
-	sd a5, 112(sp)
-	sd a6, 120(sp)
-	sd a7, 128(sp)
-	sd s2, 136(sp)
-	sd s3, 144(sp)
-	sd s4, 152(sp)
-	sd s5, 160(sp)
-	sd s6, 168(sp)
-	sd s7, 176(sp)
-	sd s8, 184(sp)
-	sd s9, 192(sp)
-	sd s10, 200(sp)
-	sd s11, 208(sp)
-	sd t3, 216(sp)
-	sd t4, 224(sp)
-	sd t5, 232(sp)
-	sd t6, 240(sp)
+    # 1. 读取关键 CSR（必须最先做，避免 sepc 被覆盖）
+    csrr t0, sepc
+    csrr t1, sstatus
+    csrr t2, scause
 
-	// call the C trap handler in trap.c
-	call kerneltrap
+    # 2. 保存 CSR 到 ktrapframe（偏移 0, 8, 16）
+    sd t0, 0(gp)        # ktf->sepc
+    sd t1, 8(gp)        # ktf->sstatus
+    sd t2, 16(gp)       # ktf->scause
 
+    # 3. 保存通用寄存器（按你 struct ktrapframe 偏移）
+    sd ra,  24(gp)      # 24
+    sd sp,  32(gp)      # 32 ← 保存中断前的 sp
+    sd gp,  40(gp)      # 40 ← 保存旧 gp（即旧 ktf 指针）
+    sd tp,  48(gp)      # 48
+    sd t0,  56(gp)      # 56
+    sd t1,  64(gp)      # 64
+    sd t2,  72(gp)      # 72
+    sd s0,  80(gp)      # 80
+    sd s1,  88(gp)      # 88
+    sd a0,  96(gp)      # 96
+    sd a1, 104(gp)      # 104
+    sd a2, 112(gp)      # 112
+    sd a3, 120(gp)      # 120
+    sd a4, 128(gp)      # 128
+    sd a5, 136(gp)      # 136
+    sd a6, 144(gp)      # 144
+    sd a7, 152(gp)      # 152
+    sd s2, 160(gp)      # 160
+    sd s3, 168(gp)      # 168
+    sd s4, 176(gp)      # 176
+    sd s5, 184(gp)      # 184
+    sd s6, 192(gp)      # 192
+    sd s7, 200(gp)      # 200
+    sd s8, 208(gp)      # 208
+    sd s9, 216(gp)      # 216
+    sd s10,224(gp)      # 224
+    sd s11,232(gp)      # 232
+    sd t3, 240(gp)      # 240
+    sd t4, 248(gp)      # 248
+    sd t5, 256(gp)      # 256
+    sd t6, 264(gp)      # 264
+
+    # 4. 调用 C 中断处理函数，传 ktf = gp
+    mv a0, gp
+    call kerneltrap
+
+    # fall through to kernelret
+
+.globl kernelret
 kernelret:
-	// restore registers.
-	ld ra, 0(sp)
-	ld sp, 8(sp)
-	ld gp, 16(sp)
-	// not this, in case we moved CPUs: ld tp, 24(sp)
-	ld t0, 32(sp)
-	ld t1, 40(sp)
-	ld t2, 48(sp)
-	ld s0, 56(sp)
-	ld s1, 64(sp)
-	ld a0, 72(sp)
-	ld a1, 80(sp)
-	ld a2, 88(sp)
-	ld a3, 96(sp)
-	ld a4, 104(sp)
-	ld a5, 112(sp)
-	ld a6, 120(sp)
-	ld a7, 128(sp)
-	ld s2, 136(sp)
-	ld s3, 144(sp)
-	ld s4, 152(sp)
-	ld s5, 160(sp)
-	ld s6, 168(sp)
-	ld s7, 176(sp)
-	ld s8, 184(sp)
-	ld s9, 192(sp)
-	ld s10, 200(sp)
-	ld s11, 208(sp)
-	ld t3, 216(sp)
-	ld t4, 224(sp)
-	ld t5, 232(sp)
-	ld t6, 240(sp)
+    # 1. 恢复通用寄存器（顺序无关，因 gp 不变）
+    ld ra,  24(gp)
+    ld sp,  32(gp)      # ← 恢复中断前的 sp
+    ld gp,  40(gp)      # ← 恢复 gp（即新进程的 ktf 指针）
+    ld tp,  48(gp)
+    ld t0,  56(gp)
+    ld t1,  64(gp)
+    ld t2,  72(gp)
+    ld s0,  80(gp)
+    ld s1,  88(gp)
+    ld a0,  96(gp)
+    ld a1, 104(gp)
+    ld a2, 112(gp)
+    ld a3, 120(gp)
+    ld a4, 128(gp)
+    ld a5, 136(gp)
+    ld a6, 144(gp)
+    ld a7, 152(gp)
+    ld s2, 160(gp)
+    ld s3, 168(gp)
+    ld s4, 176(gp)
+    ld s5, 184(gp)
+    ld s6, 192(gp)
+    ld s7, 200(gp)
+    ld s8, 208(gp)
+    ld s9, 216(gp)
+    ld s10,224(gp)
+    ld s11,232(gp)
+    ld t3, 240(gp)
+    ld t4, 248(gp)
+    ld t5, 256(gp)
+    ld t6, 264(gp)
 
-	addi sp, sp, 256
+    # 2. 恢复 CSR
+    ld t0, 0(gp)        # sepc
+    ld t1, 8(gp)        # sstatus
+    csrw sepc, t0
+    csrw sstatus, t1
 
-	// return to whatever we were doing in the kernel.
-	sret
+    # 3. 返回 —— sp 已恢复为中断前栈，gp 为新进程 ktf
+    sret

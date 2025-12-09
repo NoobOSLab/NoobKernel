@@ -78,5 +78,6 @@ static inline uint64_t cputime_to_ms(uint64_t cputime) {
 
 #define PID_MIN 2
 #define PID_MAX INT32_MAX
+#define IDLE_STACK_SIZE 1024
 
 #endif

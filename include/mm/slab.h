@@ -24,7 +24,6 @@ struct kmem_cache{
 
 int kmem_cache_init(struct kmem_cache *kmem, const char *name, size_t obj_size,
 		    bool with_initial_alloc);
-void kmem_cache_register(struct kmem_cache *kmem);
 void *kmem_cache_alloc(struct kmem_cache *kmem);
 void kmem_cache_free(void *addr);
 void kmem_cache_flush(struct kmem_cache *kmem);

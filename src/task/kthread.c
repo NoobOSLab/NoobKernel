@@ -21,7 +21,7 @@ struct proc *kthread_create(int (*fn)(void *), void *arg, const char *name)
 	p->pid = alloc_pid();
 	p->tgid = p->pid;
 	p->pagetable = kpagetable; // 共享内核页表
-
+	p->lock = SPINLOCK_INITIALIZER(name);
 	// 2. 分配内核栈（1 页足够）
 	p->kstack = kmalloc(PAGE_SIZE);
 	if (!p->kstack) {
