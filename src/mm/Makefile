@@ -1,8 +1,5 @@
-LOCAL_C_SRCS += buddy.c
-LOCAL_C_SRCS += kalloc.c
-LOCAL_C_SRCS += pm.c
-LOCAL_C_SRCS += slab.c
-LOCAL_C_SRCS += vm.c
-LOCAL_C_SRCS += pagetable.c
-LOCAL_C_SRCS += vma.c
-LOCAL_C_SRCS += early.c
+MODULE_PATH := mm
+SRCS := early.c buddy.c kalloc.c slab.c pm.c pagetable.c vma.c vm.c
+SUBMODULES :=
+
+include $(RULES_MK)

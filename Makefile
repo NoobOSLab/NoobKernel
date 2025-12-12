@@ -1,5 +1,3 @@
-.PHONY: all clean user run debug vs-debug test .FORCE docs
-
 # 工具链设置
 TOOL_PREFIX = riscv64-unknown-elf-
 CC = $(TOOL_PREFIX)gcc
@@ -16,14 +14,16 @@ QEMU = qemu-system-riscv64
 ARCH ?= QEMU
 LOG ?= INFO
 INIT_PROC ?= usershell
-SRC_DIR := src
-BUILD_DIR := build
-ARCH_DIR := $(BUILD_DIR)/$(ARCH)
-INCLUDES := include/
-MODULES := misc mm hal trap task sync async ipc fs
-TARGET := $(ARCH_DIR)/kernel
-ASM := $(ARCH_DIR)/kernel.asm
-SYM := $(ARCH_DIR)/kernel.sym
+ROOT_DIR := $(shell pwd)
+SRC_DIR := $(ROOT_DIR)/src
+BUILD_DIR := $(ROOT_DIR)/build/$(ARCH)
+INCLUDES := $(ROOT_DIR)/include/
+RULES_MK := $(ROOT_DIR)/rules.mk
+MODULES := boot misc mm hal trap task sync
+MODULE_DIRS := $(foreach m,$(MODULES),$(BUILD_DIR)/$(m))
+MODULE_MAKEFILES := $(foreach m,$(MODULES),$(SRC_DIR)/$(m)/Makefile)
+MODULE_OBJS := $(foreach d,$(MODULE_DIRS),$(d).o)
+TARGET := $(BUILD_DIR)/kernel
 
 C_FLAGS := -Wall -Werror -O -O0 -fno-omit-frame-pointer -ggdb -std=gnu11
 C_FLAGS += -Wno-unused-variable -Wno-unused-function
@@ -36,13 +36,13 @@ C_FLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 
 C_FLAGS += -D $(ARCH)
 C_FLAGS += -D LOG_LEVEL_$(LOG)
 
-# Disable PIE when possible (for Ubuntu 16.10 toolchain)
+# Disable PIE when possible
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]no-pie'),)
 C_FLAGS += -fno-pie -no-pie
 endif
 
 LD_FLAGS := -z max-page-size=4096
-LD_FLAGS += -T scripts/kernel.ld
+LD_FLAGS += -T $(ROOT_DIR)/scripts/kernel.ld
 
 # 运行参数设置
 GDB_PORT = 15234
@@ -53,75 +53,38 @@ QEMU_FLAGS = \
 	-kernel $(TARGET)
 QEMUGDB = -gdb tcp::$(GDB_PORT)
 
-# 源文件列表
-C_SRCS := $(SRC_DIR)/main.c
-AS_SRCS := $(SRC_DIR)/entry.S
+#辅助函数
+log = @printf '  %-10s %s\n' '$1' '$(patsubst $(SRC_DIR)/%,%,$(patsubst $(BUILD_DIR)/%,%,$2))'
 
-define include_module
-    LOCAL_C_SRCS :=
-	LOCAL_AS_SRCS :=
-	LOCAL_C_SRCS_$(ARCH) :=
-	LOCAL_AS_SRCS_$(ARCH) :=
-	$(eval include $(SRC_DIR)/$(1)/Makefile)
-	$(eval LOCAL_C_SRCS += $(LOCAL_C_SRCS_$(ARCH)))
-	$(eval LOCAL_AS_SRCS += $(LOCAL_AS_SRCS_$(ARCH)))
-	C_SRCS += $(addprefix $(SRC_DIR)/$(1)/, $(LOCAL_C_SRCS))
-	AS_SRCS += $(addprefix $(SRC_DIR)/$(1)/, $(LOCAL_AS_SRCS))
-endef
-
-$(foreach m,$(MODULES),$(eval $(call include_module,$(m))))
-
-# 目标文件列表
-C_OBJS := $(patsubst $(SRC_DIR)/%,$(ARCH_DIR)/%,$(C_SRCS:.c=.o))
-AS_OBJS := $(patsubst $(SRC_DIR)/%,$(ARCH_DIR)/%,$(AS_SRCS:.S=.o))
-
-# 依赖关系文件列表
-DEPS := $(C_OBJS:.o=.d) $(AS_OBJS:.o=.d)
-
-# 空目标
-.FORCE:
-
-all: $(TARGET) $(ASM) $(SYM)
-
--include $(DEPS)
-
-$(TARGET): $(AS_OBJS) $(C_OBJS)
-	@echo "LD      $@"
+$(TARGET): $(MODULE_OBJS)
+	$(call log,LD,$@)
 	@$(LD) $^ -o $@ $(LD_FLAGS)
+	$(call log,OBJDUMP,$@.asm)
+	@$(OBJDUMP) -S $(TARGET) > $@.asm
+	$(call log,OBJDUMP,$@.sym)
+	@$(OBJDUMP) -t $(TARGET) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
 
-$(ARCH_DIR)/%.o: $(SRC_DIR)/%.c
-	@mkdir -p $(dir $@)
-	@echo "CC      $<"
-	@$(CC) $(C_FLAGS) $< -o $@
+.PHONY: all clean run debug vs-debug docs
 
-$(ARCH_DIR)/%.o: $(SRC_DIR)/%.S
-	@mkdir -p $(dir $@)
-	@echo "AS      $<"
-	@$(AS) $(C_FLAGS) $< -o $@
-
-$(ASM): $(TARGET)
-	@echo "OBJDUMP $@"
-	@$(OBJDUMP) -S $(TARGET) > $(ASM)
-
-$(SYM): $(TARGET)
-	@echo "OBJDUMP $@"
-	@$(OBJDUMP) -t $(TARGET) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(SYM)
+all: $(TARGET)
 
 clean:
-	@echo "CLEAN   build"
+	$(call log,RM,$(ARCH))
 	@rm -rf $(BUILD_DIR)
 
-run: $(TARGET)
-	@echo "RUN     QEMU (virt)"
+run:
+	$(call log,RUN,$(ARCH))
 	@$(QEMU) $(QEMU_FLAGS)
 
-debug: $(TARGET)
-	@echo "DEBUG   QEMU (gdb)"
+debug:
+	$(call log,DEBUG,$(ARCH))
 	$(QEMU) $(QEMU_FLAGS) -S $(QEMUGDB) &
 	@while ! nc -zv localhost $(GDB_PORT) 2>/dev/null; do sleep 0.5; done
 	@echo "GDB     connecting..."
 	@$(GDB)
 
-vs-debug: $(TARGET)
+vs-debug:
 	@echo "按F5 启动vscode可视化调试"
 	@$(QEMU) $(QEMU_FLAGS) -S $(QEMUGDB)
+
+include $(MODULE_MAKEFILES)

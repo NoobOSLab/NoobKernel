@@ -1,5 +1,5 @@
-LOCAL_C_SRCS += string.c
-LOCAL_C_SRCS += printf.c
-LOCAL_C_SRCS += errno.c
-LOCAL_C_SRCS += radix_tree.c
-LOCAL_C_SRCS += hashtable.c
+MODULE_PATH := misc
+SRCS := string.c printf.c errno.c radix_tree.c hashtable.c
+SUBMODULES :=
+
+include $(RULES_MK)

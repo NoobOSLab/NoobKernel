@@ -1,0 +1,5 @@
+MODULE_PATH := fs
+SRCS :=
+SUBMODULES :=
+
+include $(RULES_MK)

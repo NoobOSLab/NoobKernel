@@ -1,3 +1,5 @@
-LOCAL_C_SRCS += trap.c
-LOCAL_AS_SRCS += kernelvec.S
-LOCAL_AS_SRCS += trampoline.S
+MODULE_PATH := trap
+SRCS := trap.c kernelvec.S trampoline.S
+SUBMODULES :=
+
+include $(RULES_MK)

@@ -1,1 +1,5 @@
-LOCAL_C_SRCS += timer.c
+MODULE_PATH := hal
+SRCS := timer.c
+SUBMODULES :=
+
+include $(RULES_MK)

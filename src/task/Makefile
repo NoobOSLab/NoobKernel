@@ -1,6 +1,5 @@
-LOCAL_C_SRCS += proc.c
-LOCAL_C_SRCS += sched.c
-LOCAL_C_SRCS += kthread.c
-LOCAL_AS_SRCS += switch.S
-LOCAL_AS_SRCS += idle.S
-LOCAL_AS_SRCS += kthread_entry.S
+MODULE_PATH := task
+SRCS := switch.S idle.S proc.c sched.c kthread_entry.S kthread.c
+SUBMODULES :=
+
+include $(RULES_MK)
