@@ -12,7 +12,6 @@ QEMU = qemu-system-riscv64
 
 # 编译参数设置
 ARCH ?= QEMU
-LOG ?= INFO
 INIT_PROC ?= usershell
 ROOT_DIR := $(shell pwd)
 SRC_DIR := $(ROOT_DIR)/src
@@ -34,12 +33,13 @@ C_FLAGS += -ffreestanding -fno-common -nostdlib -mno-relax -nostdinc
 C_FLAGS += -I $(INCLUDES)
 C_FLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 C_FLAGS += -D $(ARCH)
-C_FLAGS += -D LOG_LEVEL_$(LOG)
 
 # Disable PIE when possible
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]no-pie'),)
 C_FLAGS += -fno-pie -no-pie
 endif
+
+AS_FLAGS := $(C_FLAGS)
 
 LD_FLAGS := -z max-page-size=4096
 LD_FLAGS += -T $(ROOT_DIR)/scripts/kernel.ld

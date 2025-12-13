@@ -1,6 +1,7 @@
 #ifndef __MISC_LOG_H__
 #define __MISC_LOG_H__
 
+#include <config.h>
 #include <misc/printf.h>
 #include <hal/sbi.h>
 
@@ -16,45 +17,12 @@ static void dummy(int _, ...) {}
 #define DETAILED_PARAMS
 #endif // DETAILED_LOG
 
-#if defined(LOG_LEVEL_ERROR)
-
-#define USE_LOG_ERROR
-
-#endif // LOG_LEVEL_ERROR
-
-#if defined(LOG_LEVEL_WARN)
-
-#define USE_LOG_ERROR
-#define USE_LOG_WARN
-
-#endif // LOG_LEVEL_ERROR
-
-#if defined(LOG_LEVEL_INFO)
-
-#define USE_LOG_ERROR
-#define USE_LOG_WARN
-#define USE_LOG_INFO
-
-#endif // LOG_LEVEL_INFO
-
-#if defined(LOG_LEVEL_DEBUG)
-
-#define USE_LOG_ERROR
-#define USE_LOG_WARN
-#define USE_LOG_INFO
-#define USE_LOG_DEBUG
-
-#endif // LOG_LEVEL_DEBUG
-
-#if defined(LOG_LEVEL_TRACE)
-
-#define USE_LOG_ERROR
-#define USE_LOG_WARN
-#define USE_LOG_INFO
-#define USE_LOG_DEBUG
-#define USE_LOG_TRACE
-
-#endif // LOG_LEVEL_TRACE
+#define LOG_LEVEL_OFF 0
+#define LOG_LEVEL_ERROR 1
+#define LOG_LEVEL_WARN 2
+#define LOG_LEVEL_INFO 3
+#define LOG_LEVEL_DEBUG 4
+#define LOG_LEVEL_TRACE 5
 
 enum LOG_COLOR {
 	RED = 31,
@@ -64,7 +32,7 @@ enum LOG_COLOR {
 	YELLOW = 93,
 };
 
-#if defined(USE_LOG_ERROR)
+#if (LOG_LEVEL >= LOG_LEVEL_ERROR)
 #define errorf(fmt, ...)                                                       \
 	do {                                                                   \
 		printf("\x1b[%dm[%s]" DETAILED_FORMAT fmt "\x1b[0m\n", RED,    \
@@ -72,9 +40,9 @@ enum LOG_COLOR {
 	} while (0)
 #else
 #define errorf(fmt, ...) dummy(0, ##__VA_ARGS__)
-#endif // USE_LOG_ERROR
+#endif // LOG_LEVEL_ERROR
 
-#if defined(USE_LOG_WARN)
+#if (LOG_LEVEL >= LOG_LEVEL_WARN)
 #define warnf(fmt, ...)                                                        \
 	do {                                                                   \
 		printf("\x1b[%dm[%s]" DETAILED_FORMAT fmt "\x1b[0m\n", YELLOW, \
@@ -82,9 +50,9 @@ enum LOG_COLOR {
 	} while (0)
 #else
 #define warnf(fmt, ...) dummy(0, ##__VA_ARGS__)
-#endif // USE_LOG_WARN
+#endif // LOG_LEVEL_WARN
 
-#if defined(USE_LOG_INFO)
+#if (LOG_LEVEL >= LOG_LEVEL_INFO)
 #define infof(fmt, ...)                                                        \
 	do {                                                                   \
 		printf("\x1b[%dm[%s]" DETAILED_FORMAT fmt "\x1b[0m\n", BLUE,   \
@@ -92,9 +60,9 @@ enum LOG_COLOR {
 	} while (0)
 #else
 #define infof(fmt, ...) dummy(0, ##__VA_ARGS__)
-#endif // USE_LOG_INFO
+#endif // LOG_LEVEL_INFO
 
-#if defined(USE_LOG_DEBUG)
+#if (LOG_LEVEL >= LOG_LEVEL_DEBUG)
 #define debugf(fmt, ...)                                                       \
 	do {                                                                   \
 		printf("\x1b[%dm[%s]" DETAILED_FORMAT fmt "\x1b[0m\n", GREEN,  \
@@ -102,9 +70,9 @@ enum LOG_COLOR {
 	} while (0)
 #else
 #define debugf(fmt, ...) dummy(0, ##__VA_ARGS__)
-#endif // USE_LOG_DEBUG
+#endif // LOG_LEVEL_DEBUG
 
-#if defined(USE_LOG_TRACE)
+#if (LOG_LEVEL >= LOG_LEVEL_TRACE)
 #define tracef(fmt, ...)                                                       \
 	do {                                                                   \
 		printf("\x1b[%dm[%s]" DETAILED_FORMAT fmt "\x1b[0m\n", GRAY,   \
@@ -112,7 +80,7 @@ enum LOG_COLOR {
 	} while (0)
 #else
 #define tracef(fmt, ...) dummy(0, ##__VA_ARGS__)
-#endif // USE_LOG_TRACE
+#endif // LOG_LEVEL_TRACE
 
 #define panic(fmt, ...)                                                        \
 	do {                                                                   \
