@@ -1,5 +1,4 @@
-#ifndef __HAL_RISCV_H__
-#define __HAL_RISCV_H__
+#pragma once
 
 #include <misc/stddef.h>
 
@@ -385,6 +384,3 @@ static inline void floatinithart()
 	w_frm(FRM_RNE);
 	w_sstatus_fs(SSTATUS_FS_CLEAN);
 }
-
-
-#endif

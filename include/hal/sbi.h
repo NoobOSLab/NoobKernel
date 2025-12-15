@@ -1,5 +1,4 @@
-#ifndef __HAL_SBI_H__
-#define __HAL_SBI_H__
+#pragma once
 
 #include <misc/stddef.h>
 #include <hal/riscv.h>
@@ -101,5 +100,3 @@ static inline struct sbiret sbi_send_ipi(
 ) {
 	return SBI_CALL_2(IPI_EID, IPI_SEND_IPI, hart_mask, hart_mask_base);
 }
-
-#endif 

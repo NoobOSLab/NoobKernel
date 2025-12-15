@@ -1,5 +1,4 @@
-#ifndef __MISC__HASHTABLE_H__
-#define __MISC__HASHTABLE_H__
+#pragma once
 
 #include <misc/stddef.h>
 #include <misc/list.h>
@@ -48,5 +47,3 @@ void *hashtable_delete(struct hashtable *ht, void *key);
 
 // 销毁（不释放 value）
 void hashtable_destroy(struct hashtable *ht);
-
-#endif

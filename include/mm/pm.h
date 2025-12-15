@@ -1,5 +1,4 @@
-#ifndef __MM_PM_H__
-#define __MM_PM_H__
+#pragma once
 
 #include <config.h>
 
@@ -21,5 +20,3 @@ void *page2addr(struct page *page);
 void *page_alloc(u8 flags);
 int page_free(void *ptr);
 size_t get_free_pages_num();
-
-#endif

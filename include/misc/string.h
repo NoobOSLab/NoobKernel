@@ -1,5 +1,4 @@
-#ifndef __MISC_STRING_H__
-#define __MISC_STRING_H__
+#pragma once
 
 #include <misc/stddef.h>
 
@@ -32,5 +31,3 @@ char *strndup(const char *s, size_t n);
 
 // 内存搜索函数
 void *memchr(const void *s, int c, size_t n);
-
-#endif /* _STRING_H */

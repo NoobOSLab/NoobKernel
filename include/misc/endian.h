@@ -1,5 +1,4 @@
-#ifndef __MISC_ENDIAN_H__
-#define __MISC_ENDIAN_H__
+#pragma once
 
 #include <misc/stdint.h>
 
@@ -76,4 +75,3 @@ typedef be64 cpu64;
 #error "CPU ENDIAN NOT DEFINED"
 #endif
 
-#endif // __MISC_ENDIAN_H__

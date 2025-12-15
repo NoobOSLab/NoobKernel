@@ -1,5 +1,4 @@
-#ifndef __TRAP_TRAP_H__
-#define __TRAP_TRAP_H__
+#pragma once
 
 #include <misc/stddef.h>
 #include <hal/riscv.h>
@@ -74,5 +73,3 @@ void intr_on();
 void restore_intr(u64 old);
 
 int trap_init();
-
-#endif // __TRAP_TRAP_H__

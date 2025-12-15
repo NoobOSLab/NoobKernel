@@ -1,5 +1,4 @@
-#ifndef __SYNC_BARRIER_H__
-#define __SYNC_BARRIER_H__
+#pragma once
 
 /* 编译器屏障（防止编译器重排序） */
 #define barrier() __asm__ __volatile__("" ::: "memory")
@@ -15,5 +14,3 @@ static inline void rmb(void) { __asm__ __volatile__("fence r,r" ::: "memory"); }
 
 /* 写内存屏障 */
 static inline void wmb(void) { __asm__ __volatile__("fence w,w" ::: "memory"); }
-
-#endif

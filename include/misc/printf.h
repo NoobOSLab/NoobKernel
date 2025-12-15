@@ -29,8 +29,7 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef __MISC_PRINTF_H__
-#define __MISC_PRINTF_H__
+#pragma once
 
 #include <misc/stdarg.h>
 #include <misc/stddef.h>
@@ -97,5 +96,3 @@ int vprintf_(const char *format, va_list va);
  */
 int fctprintf(void (*out)(char character, void *arg), void *arg,
 	      const char *format, ...);
-
-#endif // __MISC_PRINTF_H__

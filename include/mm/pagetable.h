@@ -1,5 +1,4 @@
-#ifndef __MM_PAGETABLE_H__
-#define __MM_PAGETABLE_H__
+#pragma once
 
 #include <config.h>
 #include <misc/stddef.h>
@@ -34,5 +33,3 @@ void pagetable_destroy(pagetable_t pagetable);
 int mappages(pagetable_t pagetable, uintptr_t va, uintptr_t pa, size_t npages,
 	     int perm);
 int unmappages(pagetable_t pagetable, uintptr_t vm, size_t npages);
-
-#endif

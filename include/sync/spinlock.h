@@ -1,5 +1,4 @@
-#ifndef __SYNC_SPINLOCK_H__
-#define __SYNC_SPINLOCK_H__
+#pragma once
 
 #include <config.h>
 #include <misc/log.h>
@@ -34,5 +33,3 @@ void spinlock_release_bare(spinlock_t *lock);
 	spinlock_release_bare(lock);
 
 int spinlock_holding(spinlock_t *lock);
-
-#endif

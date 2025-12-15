@@ -1,5 +1,4 @@
-#ifndef __MM_VM_H__
-#define __MM_VM_H__
+#pragma once
 
 #define VM_START (uintptr_t)0x00000000
 #define VM_END (uintptr_t)(1ULL << (9 + 9 + 9 + 12 - 1))
@@ -15,5 +14,3 @@
 #define TRAPFRAME (TRAMPOLINE - PAGE_SIZE)
 
 void kvminit();
-
-#endif

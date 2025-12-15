@@ -1,5 +1,4 @@
-#ifndef __CONFIG_H__
-#define __CONFIG_H__
+#pragma once
 
 #if defined(QEMU)
 #include <platform/qemu_virt.h>
@@ -98,5 +97,3 @@ static inline uint64_t cputime_to_ms(uint64_t cputime)
 #define PID_MAX INT32_MAX
 
 #endif //__ASSEMBLY__
-
-#endif

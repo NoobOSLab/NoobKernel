@@ -1,5 +1,4 @@
-#ifndef __MISC_STDINT_H__
-#define __MISC_STDINT_H__
+#pragma once
 
 typedef signed char __int8_t;
 typedef short __int16_t;
@@ -113,4 +112,3 @@ typedef UINT16_TYPE u16;
 typedef UINT32_TYPE u32;
 typedef UINT64_TYPE u64;
 
-#endif

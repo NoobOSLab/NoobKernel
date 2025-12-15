@@ -1,5 +1,4 @@
-#ifndef __MISC_LOG_H__
-#define __MISC_LOG_H__
+#pragma once
 
 #include <config.h>
 #include <misc/printf.h>
@@ -97,4 +96,3 @@ enum LOG_COLOR {
 			      __LINE__);                                       \
 	} while (0)
 
-#endif //! __MISC_LOG_H__

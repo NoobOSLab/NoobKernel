@@ -1,5 +1,4 @@
-#ifndef __PLATFORM_QEMU_VIRT_H__
-#define __PLATFORM_QEMU_VIRT_H__
+#pragma once
 
 #define CPU_NUM 1
 
@@ -13,5 +12,3 @@
 #define VIRTIO0 0x10001000ULL
 #define CLINT 0x02000000ULL
 #define PLIC 0x0c000000ULL
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef __MISC_LIST_H
-#define __MISC_LIST_H
+#pragma once
 
 #include <misc/stddef.h>
 
@@ -89,5 +88,3 @@ static inline void list_move(struct list_head *new, struct list_head *head){
 	    n = list_entry(pos->member.next, typeof(*pos), member);            \
 	     &pos->member != (head);                                           \
 	     pos = n, n = list_entry(n->member.next, typeof(*n), member))
-
-#endif /* __MISC_LIST_H */

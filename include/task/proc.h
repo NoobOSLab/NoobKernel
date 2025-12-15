@@ -1,5 +1,4 @@
-#ifndef __TASK_PROC_H__
-#define __TASK_PROC_H__
+#pragma once
 
 #include <misc/list.h>
 #include <misc/stddef.h>
@@ -110,5 +109,3 @@ struct cpu *thiscpu();
 
 struct proc *alloc_proc();
 void free_proc(struct proc *p);
-
-#endif

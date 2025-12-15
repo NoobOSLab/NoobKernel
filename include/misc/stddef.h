@@ -1,5 +1,4 @@
-#ifndef __MISC_STDDEF_H__
-#define __MISC_STDDEF_H__
+#pragma once
 
 #include <misc/stdint.h>
 #include <misc/stdbool.h>
@@ -29,10 +28,10 @@ typedef int dev_t;
 #define MKDEV(major, minor) (((major) << 20) | ((minor) & 0xfffff))
 
 typedef ssize_t off_t;
+typedef size_t ino_t;
+typedef u32 mode_t;
 
 typedef u64 tick_t;
 typedef u64 *pagetable_t;
 
 typedef int pid_t;
-
-#endif

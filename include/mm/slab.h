@@ -1,5 +1,4 @@
-#ifndef __MM_SLAB_H__
-#define __MM_SLAB_H__
+#pragma once
 
 #include <misc/stdint.h>
 #include <misc/list.h>
@@ -27,5 +26,3 @@ int kmem_cache_init(struct kmem_cache *kmem, const char *name, size_t obj_size,
 void *kmem_cache_alloc(struct kmem_cache *kmem);
 void kmem_cache_free(void *addr);
 void kmem_cache_flush(struct kmem_cache *kmem);
-
-#endif // __MM_SLAB_H__

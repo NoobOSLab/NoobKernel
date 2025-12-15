@@ -1,5 +1,4 @@
-#ifndef __MM_KALLOC_H__
-#define __MM_KALLOC_H__
+#pragma once
 
 #include <misc/stddef.h>
 
@@ -11,5 +10,3 @@ void *krealloc(void *ptr, size_t size);
 void kfree(void *ptr);
 
 void kalloc_test();
-
-#endif // __MM_KALLOC_H__

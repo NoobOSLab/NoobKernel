@@ -1,5 +1,4 @@
-#ifndef __MISC_MATH_H__
-#define __MISC_MATH_H__
+#pragma once
 
 #include <misc/stdint.h>
 
@@ -48,5 +47,3 @@ static int log2_ceil(size_t size) {
 
 	return log2_result;
 }
-
-#endif /* __MISC_MATH_H__ */

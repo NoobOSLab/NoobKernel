@@ -1,5 +1,4 @@
-#ifndef __MM_VMA_H__
-#define __MM_VMA_H__
+#pragma once
 
 #include <misc/list.h>
 #include <misc/stddef.h>
@@ -44,5 +43,3 @@ int vma_map_pages(struct proc *proc, struct vma *vma);
 
 // 解除页表映射（调用 unmappages），但保留 VMA（用于 swap 或 lazy free）
 int vma_unmap_pages(struct proc *proc, uintptr_t start, size_t length);
-
-#endif

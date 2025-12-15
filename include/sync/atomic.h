@@ -1,5 +1,4 @@
-#ifndef __SYNC_ATOMIC_H__
-#define __SYNC_ATOMIC_H__
+#pragma once
 
 #include <misc/stddef.h>
 
@@ -162,5 +161,3 @@ static inline void *atomic_ptr_cmpxchg(atomic_ptr_t *v, void *old_ptr,
 	return (void *)(uintptr_t)atomic64_cmpxchg(
 	    v, (int64_t)(uintptr_t)old_ptr, (int64_t)(uintptr_t)new_ptr);
 }
-
-#endif

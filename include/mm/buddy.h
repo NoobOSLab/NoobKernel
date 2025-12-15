@@ -1,5 +1,4 @@
-#ifndef __MM_BUDDY_H__
-#define __MM_BUDDY_H__
+#pragma once
 
 #include <misc/stddef.h>
 
@@ -8,4 +7,3 @@ void *buddy_alloc(size_t size);
 void buddy_free(void *ptr);
 
 void buddy_test();
-#endif /* __MM_BUDDY_H__ */

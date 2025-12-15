@@ -1,5 +1,4 @@
-#ifndef __TASK_SCHED_H__
-#define __TASK_SCHED_H__
+#pragma once
 
 #include <task/proc.h>
 
@@ -11,5 +10,3 @@ void enqueue_proc(int hartid, struct proc *p);
 struct proc *dequeue_proc(int hartid);
 void sched_yield();
 void context_switch_yield(struct proc *old);
-
-#endif

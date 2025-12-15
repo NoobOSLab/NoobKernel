@@ -1,5 +1,4 @@
-#ifndef __MISC_COMPLIER_H__
-#define __MISC_COMPLIER_H__
+#pragma once
 
 #include <misc/stdint.h>
 
@@ -27,5 +26,3 @@
 static inline void nop(void) { __asm__ __volatile__("nop"); }
 
 static inline void wfi(void) { __asm__ __volatile__("wfi"); }
-
-#endif

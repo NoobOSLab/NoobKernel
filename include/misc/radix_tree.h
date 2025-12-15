@@ -1,5 +1,4 @@
-#ifndef __MISC_RADIX_TREE_H__
-#define __MISC_RADIX_TREE_H__
+#pragma once
 
 #include <misc/stddef.h>
 #include <misc/stdbool.h>
@@ -36,4 +35,3 @@ int rxtree_delete(struct rxtree *tree, u64 key);
 /* 释放整个基数树 */
 void rxtree_free(struct rxtree *tree);
 
-#endif

@@ -1,5 +1,4 @@
-#ifndef __MISC_ERRNO_H__
-#define __MISC_ERRNO_H__
+#pragma once
 
 /*
  * 标准错误代码定义
@@ -163,5 +162,3 @@ struct error_info {
 const char *strerror(int errnum);
 const char *get_error_name(int errnum);
 void print_error(const char *prefix, int errnum);
-
-#endif /* __MISC_ERRNO_H__ */
