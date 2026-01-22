@@ -2,6 +2,7 @@
 #include <hal/sbi.h>
 #include <hal/timer.h>
 #include <task/sched.h>
+#include <misc/cputime.h>
 #include <misc/log.h>
 
 static volatile tick_t kernel_tick;

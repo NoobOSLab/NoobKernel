@@ -4,6 +4,7 @@
 #include <mm/kalloc.h>
 #include <mm/pagetable.h>
 #include <mm/vm.h>
+#include <misc/align.h>
 
 pte_t *va2pte(pagetable_t pagetable, uintptr_t va, bool alloc)
 {

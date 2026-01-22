@@ -5,7 +5,7 @@
 #include <mm/early.h>
 #include <misc/errno.h>
 #include <mm/pm.h>
-#include <config.h>
+#include <mm/layout.h>
 #include <misc/log.h>
 #include <misc/complier.h>
 #include <sync/spinlock.h>

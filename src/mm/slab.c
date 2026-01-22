@@ -1,6 +1,6 @@
-#include "sync/spinlock.h"
+#include <sync/spinlock.h>
 #include <mm/slab.h>
-#include <config.h>
+#include <misc/align.h>
 #include <misc/stdbool.h>
 #include <misc/string.h>
 #include <misc/errno.h>

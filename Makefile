@@ -72,7 +72,7 @@ clean:
 	$(call log,RM,$(ARCH))
 	@rm -rf $(BUILD_DIR)
 
-run:
+run: $(TARGET)
 	$(call log,RUN,$(ARCH))
 	@$(QEMU) $(QEMU_FLAGS)
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <config.h>
+#include <misc/stdint.h>
 
 #define PM_BUDDY 0x01
 #define PM_SLAB 0x02

@@ -1,4 +1,6 @@
 #include <mm/pm.h>
+#include <mm/layout.h>
+#include <misc/stdint.h>
 #include <misc/list.h>
 #include <mm/early.h>
 #include <mm/kalloc.h>
