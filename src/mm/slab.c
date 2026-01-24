@@ -9,6 +9,7 @@
 #include <mm/buddy.h>
 #include <mm/pm.h>
 #include <misc/list.h>
+#include <misc/bitmap.h>
 #include <mm/kalloc.h>
 #include <misc/complier.h>
 
@@ -22,11 +23,12 @@ const u16 SLAB_MAGIC = 0x51AB; // 魔数，用于验证slab的有效性
 struct slab {
 	struct list_head list;
 	struct kmem_cache *kmem;
+	struct bitmap bm;
 	u32 total;
 	u32 free;
 	u32 offset;
 	u16 magic;
-	u8 bitmap[];
+	u8 bm_data[];
 };
 
 static u32 object_num(u32 obj_size)
@@ -57,7 +59,9 @@ static void slab_init(struct kmem_cache *kmem, void *blob)
 	    .offset = offset,
 	    .magic = SLAB_MAGIC,
 	};
-	memset(s->bitmap, 0, bitmap_size);
+	memset(s->bm_data, 0, bitmap_size);
+	s->bm.data = s->bm_data;
+	s->bm.len = total;
 	list_add_tail(
 	    &s->list,
 	    &kmem->slabs_partial); // 这里虽然全空，但是直接放到可用链表
@@ -86,17 +90,14 @@ static void *slab_alloc(struct slab *s)
 	if (s->free == 0) {
 		list_move(&s->list, &s->kmem->slabs_full);
 	}
-	for (u32 i = 0; i < s->total; i++) {
-		if ((s->bitmap[i / 8] & (1 << (i % 8))) == 0) {
-			s->bitmap[i / 8] |= (1 << (i % 8));
-			slab_log("%s allocated: %p", s->kmem->name,
-				 (void *)((uintptr_t)s + s->offset +
-					  i * s->kmem->alloc_size));
-			return (void *)((uintptr_t)s + s->offset +
-					i * s->kmem->alloc_size);
-		}
-	}
-	panic("slab meta data error");
+	u32 idx = bitmap_find_next_clear(&s->bm, 0);
+	if (idx == s->bm.len)
+		panic("slab meta data error");
+	bitmap_set(&s->bm, idx);
+	slab_log(
+	    "%s allocated: %p", s->kmem->name,
+	    (void *)((uintptr_t)s + s->offset + idx * s->kmem->alloc_size));
+	return (void *)((uintptr_t)s + s->offset + idx * s->kmem->alloc_size);
 }
 
 // 上层确保addr属于slab内存，且s->kmem有效
@@ -110,11 +111,11 @@ static void slab_free(void *addr)
 	if (obj_offset < s->offset)
 		panic("trying free %p belongs to a slab's meta data", addr);
 
-	u32 i = (obj_offset - s->offset) / s->kmem->alloc_size;
-	if (i >= s->total)
+	u32 idx = (obj_offset - s->offset) / s->kmem->alloc_size;
+	if (idx >= s->total)
 		panic("trying free out-bounded block at %p in slab", addr);
 
-	if ((s->bitmap[i / 8] & (1 << (i % 8))) == 0) {
+	if (bitmap_get(&s->bm, idx) == 0) {
 		warnf("double free %p in a slab", addr);
 		return;
 	}
@@ -125,7 +126,7 @@ static void slab_free(void *addr)
 	if (s->free == 0) {
 		list_move(&s->list, &s->kmem->slabs_partial);
 	}
-	s->bitmap[i / 8] &= ~(1 << (i % 8));
+	bitmap_clear(&s->bm, idx);
 	s->free++;
 	slab_log("%s freed %p", s->kmem->name, addr);
 }
