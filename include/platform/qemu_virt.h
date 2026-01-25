@@ -10,19 +10,17 @@
 
 #ifndef __ASSEMBLY__
 
-#include <hal/device_define.h>
+#define PLIC {.addr = 0x0c000000, .len = 0x600000}
 
-PLIC_DEF(0x0c000000, 0x600000)
+#define VIRTIO_MMIO_0 {.addr = 0x10001000, .len = 0x1000, .irqno = 0x1}
+#define VIRTIO_MMIO_1 {.addr = 0x10002000, .len = 0x1000, .irqno = 0x2}
+#define VIRTIO_MMIO_2 {.addr = 0x10003000, .len = 0x1000, .irqno = 0x3}
+#define VIRTIO_MMIO_3 {.addr = 0x10004000, .len = 0x1000, .irqno = 0x4}
+#define VIRTIO_MMIO_4 {.addr = 0x10005000, .len = 0x1000, .irqno = 0x5}
+#define VIRTIO_MMIO_5 {.addr = 0x10006000, .len = 0x1000, .irqno = 0x6}
+#define VIRTIO_MMIO_6 {.addr = 0x10007000, .len = 0x1000, .irqno = 0x7}
+#define VIRTIO_MMIO_7 {.addr = 0x10008000, .len = 0x1000, .irqno = 0x8}
 
-VIRTIO_MMIO_DEF(0, 0x10001000, 0x1000, 0x1)
-VIRTIO_MMIO_DEF(1, 0x10002000, 0x1000, 0x2)
-VIRTIO_MMIO_DEF(2, 0x10003000, 0x1000, 0x3)
-VIRTIO_MMIO_DEF(3, 0x10004000, 0x1000, 0x4)
-VIRTIO_MMIO_DEF(4, 0x10005000, 0x1000, 0x5)
-VIRTIO_MMIO_DEF(5, 0x10006000, 0x1000, 0x6)
-VIRTIO_MMIO_DEF(6, 0x10007000, 0x1000, 0x7)
-VIRTIO_MMIO_DEF(7, 0x10008000, 0x1000, 0x8)
-
-UART_DEF(0, 0x10000000, 0x100, 0xa)
+#define UART_0 {.addr = 0x10000000, , .len = 0x100, .irqno = 0xa}
 
 #endif

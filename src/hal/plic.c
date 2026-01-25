@@ -1,5 +1,6 @@
 #include <config.h>
 #include <hal/plic.h>
+#include <hal/device_types.h>
 #include <misc/bitmap.h>
 #include <misc/log.h>
 
@@ -19,13 +20,20 @@ struct plic_regs {
 		volatile u32 claim_complete;
 		u8 _reserved[0xFF8];
 	} context_status[PLIC_MAX_CTX_NUM];
-} __packed__;
+} __attribute__((__packed__));
 
 struct plic_device {
-	struct plic_regs *const regs;
+	struct plic_raw raw;
+	struct plic_regs * regs;
 };
 
-struct plic_device plic = {.regs = (void *)PLIC.addr};
+static struct plic_device plic = {
+	.raw = PLIC
+};
+
+void plic_init(){
+	plic.regs = (void *)plic.raw.addr;
+}
 
 void plic_set_priority(u32 irqno, u32 priority)
 {
