@@ -1,6 +1,6 @@
 #pragma once
 
-#include <config.h>
+#include <misc/stddef.h>
 
 tick_t tick();
 void timer_init();
