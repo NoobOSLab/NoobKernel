@@ -1,5 +1,5 @@
 MODULE_PATH := hal
-SRCS := timer.c
-SUBMODULES :=
+SRCS := plic.c timer.c blk.c
+SUBMODULES := virtio
 
 include $(RULES_MK)

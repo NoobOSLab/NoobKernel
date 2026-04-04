@@ -4,38 +4,23 @@
 #include <misc/complier.h>
 #include <trap/trap.h>
 #include <hal/timer.h>
+#include <hal/plic.h>
+#include <hal/blk.h>
 #include <mm/vm.h>
 #include <mm/kalloc.h>
+#include <mm/bcache.h>
 #include <task/kthread.h>
 #include <task/sched.h>
 
 extern char *s_bss;
 extern char *e_bss;
+extern int virtio_init(void);
+extern void virtio_disk_test(void);
 
 static inline void clear_bss() { memset(s_bss, 0, e_bss - s_bss); }
 volatile bool sched_enabled = false;
 
-int test_thread(void *arg)
-{
-	int id = *(int *)arg;
-	for (int i = 0; i < 10; i++) {
-		struct proc *p = thiscpu()->proc;
-		infof("%s(%d) %d: %d", p->comm, p->pid, id, i);
-		for (volatile u64 i = 0; i < 1000000000; i++)
-			;
-	}
-	return id;
-}
-
-void init_kthreads(void)
-{
-	static int arg1 = 1, arg2 = 2;
-
-	kthread_create(test_thread, &arg1, "thread1");
-	kthread_create(test_thread, &arg2, "thread2");
-	kthread_create(test_thread, &arg1, "thread3");
-	kthread_create(test_thread, &arg2, "thread4");
-}
+extern void kalloc_test(void);
 
 void main(u64 hartid, void *_)
 {
@@ -45,11 +30,14 @@ void main(u64 hartid, void *_)
 		infof("Hello world on cpu: %d", r_tp());
 		print_pm_layout();
 		pm_init();
+		plic_init();
 		trap_init();
 		timer_init();
 		kvminit();
 		init_runq();
-		init_kthreads();
+		blk_init();
+		bcache_init();
+		virtio_init();
 		sched_enabled = true;
 		context_switch_to(&thiscpu()->idle.ctx);
 		sched_yield();

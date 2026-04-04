@@ -50,7 +50,12 @@ QEMU_FLAGS = \
 	-nographic \
 	-machine virt \
 	-m 128M \
+	-d guest_errors,unimp \
 	-kernel $(TARGET)
+QEMU_FLAGS += -global virtio-mmio.force-legacy=false
+QEMU_FLAGS += -drive file=fs.img,if=none,format=raw,id=x0
+QEMU_FLAGS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+
 QEMUGDB = -gdb tcp::$(GDB_PORT)
 
 #辅助函数

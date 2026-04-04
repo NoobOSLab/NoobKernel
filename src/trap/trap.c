@@ -1,6 +1,11 @@
 #include <trap/trap.h>
 #include <task/sched.h>
 #include <misc/log.h>
+#include <hal/plic.h>
+#include <hal/riscv.h>
+#include <config.h>
+
+extern void virtio_blk_isr(void);
 
 extern char trampoline[], uservec[];
 extern char userret[], kernelvec[];
@@ -9,6 +14,36 @@ extern bool sched_enabled;
 extern void handle_timer(void);
 extern void handle_external(void);
 extern void handle_ipi(void);
+
+void handle_external(void)
+{
+	u64 hartid = r_mhartid();
+	u32 irqno = plic_claim('S', hartid);
+
+	if (irqno == 0) {
+		return;
+	}
+
+	switch (irqno) {
+	case 1:
+	case 2:
+	case 3:
+	case 4:
+	case 5:
+	case 6:
+	case 7:
+	case 8:
+		if (irqno == 1) {
+			virtio_blk_isr();
+		}
+		break;
+	default:
+		warnf("handle_external: unknown irq %d", irqno);
+		break;
+	}
+
+	plic_complete('S', hartid, irqno);
+}
 
 // 关中断：支持嵌套调用
 void intr_off(void)
@@ -99,7 +134,7 @@ void kerneltrap(struct ktrapframe *ktf)
 		break;
 
 	case SupervisorExternal: // Supervisor External Interrupt (SEI)
-		// handle_external();
+		handle_external();
 		break;
 
 	default:

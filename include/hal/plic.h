@@ -2,6 +2,8 @@
 
 #include <misc/stdint.h>
 
+void plic_init(void);
+
 // 设置指定中断源的优先级，数值越小优先级越高
 void plic_set_priority(u32 irqno, u32 priority);
 
