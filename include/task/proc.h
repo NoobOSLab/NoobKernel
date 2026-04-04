@@ -3,6 +3,8 @@
 #include <misc/list.h>
 #include <misc/stddef.h>
 #include <sync/spinlock.h>
+#include <fs/fd_table.h>
+#include <fs/dentry.h>
 
 #define PROC_UNUSED 0
 #define PROC_IDLE 1
@@ -30,7 +32,7 @@ struct context {
 	u64 s10;
 	u64 s11;
 
-	//CSR
+	// CSR
 	u64 sstatus;
 };
 
@@ -91,6 +93,9 @@ struct proc {
 	struct proc *parent;
 	struct list_head children;
 	struct list_head sibling;
+
+	struct fd_table *fd_table;
+	struct dentry *pwd;
 
 	spinlock_t lock;
 };

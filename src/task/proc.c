@@ -6,6 +6,8 @@
 #include <mm/vma.h>
 #include <sync/atomic.h>
 #include <misc/string.h>
+#include <fs/fd_table.h>
+#include <fs/vfs.h>
 
 extern pagetable_t kpagetable;
 
@@ -72,6 +74,18 @@ struct proc *alloc_proc()
 	p->state = PROC_UNUSED;
 	p->ctx.gp = (uintptr_t)&p->ktf;
 	p->ctx.sstatus = SSTATUS_SIE;
+
+	p->fd_table = fd_table_alloc();
+	if (!p->fd_table) {
+		kfree(p);
+		return NULL;
+	}
+
+	p->pwd = vfs_get_root();
+	if (p->pwd) {
+		dentry_get(p->pwd);
+	}
+
 	return p;
 }
 
@@ -81,28 +95,21 @@ void free_proc(struct proc *p)
 	if (!p)
 		return;
 
-	// 1. 从父进程的 children 链表中删除自己
 	if (p->parent) {
-		// 【关键】获取父进程锁（防止父进程同时 wait()）
 		spinlock_acquire(&p->parent->lock);
-		list_del(
-		    &p->sibling); // p->sibling 是在 parent->children 中的节点
+		list_del(&p->sibling);
 		spinlock_release(&p->parent->lock);
 		p->parent = NULL;
 	}
 
-	// 2. 释放内核栈
 	if (p->kstack)
 		kfree(p->kstack);
 
-	// 3. 释放 trapframe
 	if (p->tf)
 		kfree(p->tf);
 
-	// 4. 释放VMA和页表（如果是用户进程）
 	if (p->pagetable && p->pagetable != kpagetable) {
 		struct list_head *pos, *n;
-		// 遍历 VMA，解除映射
 		list_for_each_safe(pos, n, &p->vma)
 		{
 			struct vma *vma = list_entry(pos, struct vma, list);
@@ -111,6 +118,15 @@ void free_proc(struct proc *p)
 		pagetable_destroy(p->pagetable);
 	}
 
-	// 5. 释放 proc 结构体
+	if (p->fd_table) {
+		fd_table_free(p->fd_table);
+		p->fd_table = NULL;
+	}
+
+	if (p->pwd) {
+		dentry_put(p->pwd);
+		p->pwd = NULL;
+	}
+
 	kfree(p);
 }
