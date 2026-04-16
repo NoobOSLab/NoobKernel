@@ -48,6 +48,7 @@ typedef u64 time_t;
 #define O_RDONLY 00000000
 #define O_WRONLY 00000001
 #define O_RDWR 00000002
+#define O_ACCMODE 00000003
 #define O_CREAT 00000100
 #define O_EXCL 00000200
 #define O_NOCTTY 00000400
@@ -81,6 +82,28 @@ struct qstr {
 	char *name;
 	u32 len;
 	u32 hash;
+};
+
+struct dirent {
+	u64 d_ino;
+	u64 d_off;
+	u16 d_reclen;
+	u8 d_type;
+	char d_name[NAME_MAX + 1];
+};
+
+struct statfs {
+	u64 f_type;
+	u64 f_bsize;
+	u64 f_blocks;
+	u64 f_bfree;
+	u64 f_bavail;
+	u64 f_files;
+	u64 f_ffree;
+	u64 f_fsid;
+	u64 f_namelen;
+	u64 f_frsize;
+	u64 f_flags;
 };
 
 static inline u32 hash_string(const char *str, u32 len)

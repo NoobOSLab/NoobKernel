@@ -43,15 +43,21 @@ static const char *vfs_skip_slashes(const char *path)
 static struct dentry *vfs_lookup_single(struct dentry *base, const char *name,
 					u32 len)
 {
+	tracef("vfs_lookup_single: base=%p, name='%s', len=%u", base, name,
+	       len);
+
 	if (!base || !name || len == 0) {
+		tracef("vfs_lookup_single: invalid params");
 		return PTR(-EINVAL);
 	}
 
 	if (!base->d_inode || !S_ISDIR(base->d_inode->i_mode)) {
+		tracef("vfs_lookup_single: not a directory");
 		return PTR(-ENOTDIR);
 	}
 
 	if (!base->d_inode->i_op || !base->d_inode->i_op->lookup) {
+		tracef("vfs_lookup_single: no lookup operation");
 		return PTR(-ENOSYS);
 	}
 
@@ -60,29 +66,41 @@ static struct dentry *vfs_lookup_single(struct dentry *base, const char *name,
 	qstr.len = len;
 	qstr.hash = hash_string(name, len);
 
+	tracef("vfs_lookup_single: calling dentry_lookup");
 	struct dentry *dentry = dentry_lookup(base->d_sb, base, &qstr);
 	if (dentry) {
+		tracef("vfs_lookup_single: found in cache");
 		return dentry;
 	}
 
+	tracef("vfs_lookup_single: allocating new dentry");
 	dentry = dentry_alloc(base, base->d_sb, name);
 	if (IS_ERR(dentry)) {
+		tracef("vfs_lookup_single: dentry_alloc failed");
 		return dentry;
 	}
 
+	tracef("vfs_lookup_single: calling lookup, dentry=%p", dentry);
 	struct dentry *result =
 	    base->d_inode->i_op->lookup(base->d_inode, dentry);
+	tracef("vfs_lookup_single: lookup returned %p (IS_ERR=%d)", result,
+	       IS_ERR(result));
+
 	if (IS_ERR(result)) {
+		tracef("vfs_lookup_single: lookup failed, freeing dentry");
 		dentry_free(dentry);
 		return result;
 	}
 
 	if (result != dentry) {
+		tracef("vfs_lookup_single: result != dentry");
 		dentry_free(dentry);
 		dentry = result;
 	}
 
+	tracef("vfs_lookup_single: calling dentry_insert");
 	dentry_insert(dentry);
+	tracef("vfs_lookup_single: done");
 	return dentry;
 }
 
@@ -204,12 +222,15 @@ int vfs_path_parent(struct dentry *base, const char *path, struct path *parent,
 
 	if (!base) {
 		base = vfs_get_root();
+		tracef("vfs_path_parent: root=%p", base);
 		if (!base) {
+			tracef("vfs_path_parent: no root");
 			return -ENOENT;
 		}
 	}
 
 	dentry_get(base);
+	tracef("vfs_path_parent: base refcnt increased");
 
 	char name[NAME_MAX + 1];
 	u32 len;
@@ -219,8 +240,10 @@ int vfs_path_parent(struct dentry *base, const char *path, struct path *parent,
 	struct dentry *current = base;
 
 	p = vfs_skip_slashes(p);
+	tracef("vfs_path_parent: path='%s', p='%s'", path, p);
 
 	while (*p) {
+		tracef("vfs_path_parent: loop iteration, *p='%c'", *p);
 		last_start = p;
 
 		int ret = vfs_get_name(p, name, &len);
@@ -229,10 +252,16 @@ int vfs_path_parent(struct dentry *base, const char *path, struct path *parent,
 			return ret;
 		}
 
+		tracef("vfs_path_parent: extracted name='%s', len=%u", name,
+		       len);
+
 		p += len;
 		p = vfs_skip_slashes(p);
+		tracef("vfs_path_parent: after skip, p='%s'", p);
 
 		if (*p) {
+			tracef("vfs_path_parent: looking up intermediate '%s'",
+			       name);
 			struct dentry *next =
 			    vfs_lookup_single(current, name, len);
 			if (IS_ERR(next)) {
@@ -244,17 +273,35 @@ int vfs_path_parent(struct dentry *base, const char *path, struct path *parent,
 				dentry_put(current);
 			}
 			current = next;
+		} else {
+			tracef("vfs_path_parent: last component '%s'", name);
 		}
 	}
 
+	tracef("vfs_path_parent: setting parent->dentry=%p", current);
 	parent->dentry = current;
+
+	tracef("vfs_path_parent: current->d_inode=%p", current->d_inode);
 	parent->inode = current->d_inode;
 
 	if (last_start) {
 		vfs_get_name(last_start, name, &len);
-		qstr_init(last, name);
+
+		char *name_copy = kmalloc(len + 1);
+		if (!name_copy) {
+			dentry_put(base);
+			return -ENOMEM;
+		}
+		strcpy(name_copy, name);
+		qstr_init(last, name_copy);
 	} else {
-		qstr_init(last, "");
+		char *empty = kmalloc(1);
+		if (!empty) {
+			dentry_put(base);
+			return -ENOMEM;
+		}
+		empty[0] = '\0';
+		qstr_init(last, empty);
 	}
 
 	return 0;

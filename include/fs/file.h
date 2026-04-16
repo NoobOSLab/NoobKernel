@@ -15,6 +15,7 @@ struct file_operations {
 			loff_t *pos);
 	ssize_t (*write)(struct file *file, const void *buf, size_t count,
 			 loff_t *pos);
+	int (*readdir)(struct file *file, struct dirent *buf, size_t count);
 	int (*open)(struct inode *inode, struct file *file);
 	int (*release)(struct inode *inode, struct file *file);
 	int (*flush)(struct file *file);
@@ -57,5 +58,6 @@ int file_close(struct file *file);
 ssize_t file_read(struct file *file, void *buf, size_t count);
 ssize_t file_write(struct file *file, const void *buf, size_t count);
 loff_t file_lseek(struct file *file, loff_t offset, int whence);
+ssize_t file_getdents(struct file *file, struct dirent *buf, size_t count);
 void file_get(struct file *file);
 void file_put(struct file *file);

@@ -175,6 +175,21 @@ void dentry_get(struct dentry *dentry)
 int dentry_insert(struct dentry *dentry)
 {
 	if (!dentry) {
+		tracef("dentry_insert: dentry is NULL");
+		return -EINVAL;
+	}
+
+	tracef("dentry_insert: dentry=%p, d_sb=%p, d_parent=%p, d_name=%s",
+	       dentry, dentry->d_sb, dentry->d_parent,
+	       dentry->d_name.name ? dentry->d_name.name : "(null)");
+
+	if (!dentry->d_sb) {
+		tracef("dentry_insert: d_sb is NULL for dentry %p", dentry);
+		return -EINVAL;
+	}
+
+	if (!dentry->d_parent) {
+		tracef("dentry_insert: d_parent is NULL for dentry %p", dentry);
 		return -EINVAL;
 	}
 

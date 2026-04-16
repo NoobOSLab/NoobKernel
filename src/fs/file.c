@@ -143,7 +143,7 @@ ssize_t file_read(struct file *file, void *buf, size_t count)
 		return -ENOENT;
 	}
 
-	if (!(file->f_flags & O_RDONLY) && !(file->f_flags & O_RDWR)) {
+	if ((file->f_flags & O_ACCMODE) == O_WRONLY) {
 		return -EACCES;
 	}
 
@@ -186,7 +186,7 @@ ssize_t file_write(struct file *file, const void *buf, size_t count)
 		return -ENOENT;
 	}
 
-	if (!(file->f_flags & O_WRONLY) && !(file->f_flags & O_RDWR)) {
+	if ((file->f_flags & O_ACCMODE) == O_RDONLY) {
 		return -EACCES;
 	}
 
@@ -266,6 +266,33 @@ loff_t file_lseek(struct file *file, loff_t offset, int whence)
 	file->f_pos = new_pos;
 	spinlock_release(&file->f_lock);
 	return new_pos;
+}
+
+ssize_t file_getdents(struct file *file, struct dirent *buf, size_t count)
+{
+	if (!file || !buf || count == 0) {
+		return -EINVAL;
+	}
+
+	if (!file->f_inode) {
+		return -ENOENT;
+	}
+
+	if (!S_ISDIR(file->f_inode->i_mode)) {
+		return -ENOTDIR;
+	}
+
+	if (!file->f_op || !file->f_op->readdir) {
+		return -ENOSYS;
+	}
+
+	spinlock_acquire(&file->f_lock);
+
+	int ret = file->f_op->readdir(file, buf, count);
+
+	spinlock_release(&file->f_lock);
+
+	return ret;
 }
 
 void file_get(struct file *file)

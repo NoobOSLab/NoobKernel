@@ -9,6 +9,8 @@
 #include <misc/list.h>
 #include <sync/spinlock.h>
 
+struct statfs;
+
 struct file_system_type {
 	const char *name;
 	struct super_block *(*mount)(struct file_system_type *fs_type,
@@ -61,6 +63,7 @@ int vfs_close(struct file *file);
 ssize_t vfs_read(struct file *file, void *buf, size_t count);
 ssize_t vfs_write(struct file *file, const void *buf, size_t count);
 loff_t vfs_lseek(struct file *file, loff_t offset, int whence);
+ssize_t vfs_getdents(struct file *file, struct dirent *buf, size_t count);
 
 int vfs_mkdir(const char *path, umode_t mode);
 int vfs_rmdir(const char *path);
@@ -69,5 +72,9 @@ int vfs_create(const char *path, umode_t mode);
 int vfs_rename(const char *old_path, const char *new_path);
 
 struct dentry *vfs_get_root(void);
+
+int vfs_statfs(const char *path, struct statfs *buf);
+int vfs_sync(void);
+int vfs_fsync(struct file *file);
 
 void vfs_init(void);

@@ -271,7 +271,12 @@ struct file *vfs_open(const char *path, u32 flags)
 		return PTR(-EINVAL);
 	}
 
+	tracef("vfs_open: path='%s', flags=0x%x", path, flags);
+
 	struct dentry *dentry = vfs_path_lookup(NULL, path, LOOKUP_FOLLOW);
+	tracef("vfs_path_lookup returned: %p (IS_ERR=%d)", dentry,
+	       IS_ERR(dentry));
+
 	if (IS_ERR(dentry)) {
 		if ((flags & O_CREAT) && PTR_ERR(dentry) == -ENOENT) {
 			struct path parent;
@@ -281,14 +286,45 @@ struct file *vfs_open(const char *path, u32 flags)
 				return PTR((long)ret);
 			}
 
-			if (!parent.dentry->d_inode ||
-			    !S_ISDIR(parent.dentry->d_inode->i_mode)) {
+			if (!parent.dentry) {
+				kfree(last.name);
+				return PTR(-ENOENT);
+			}
+
+			if (!parent.dentry->d_inode) {
+				kfree(last.name);
+				dentry_put(parent.dentry);
+				return PTR(-ENOENT);
+			}
+			if (!parent.dentry->d_inode) {
+				kfree(last.name);
+				dentry_put(parent.dentry);
+				return PTR(-ENOENT);
+			}
+
+			infof("parent.dentry: %p", parent.dentry);
+			if (!parent.dentry) {
+				kfree(last.name);
+				return PTR(-ENOENT);
+			}
+
+			infof("parent.dentry->d_inode: %p",
+			      parent.dentry->d_inode);
+			if (!parent.dentry->d_inode) {
+				kfree(last.name);
+				dentry_put(parent.dentry);
+				return PTR(-ENOENT);
+			}
+
+			if (!S_ISDIR(parent.dentry->d_inode->i_mode)) {
+				kfree(last.name);
 				dentry_put(parent.dentry);
 				return PTR(-ENOTDIR);
 			}
 
 			if (!parent.dentry->d_inode->i_op ||
 			    !parent.dentry->d_inode->i_op->create) {
+				kfree(last.name);
 				dentry_put(parent.dentry);
 				return PTR(-ENOSYS);
 			}
@@ -296,6 +332,7 @@ struct file *vfs_open(const char *path, u32 flags)
 			struct dentry *new_dentry = dentry_alloc(
 			    parent.dentry, parent.dentry->d_sb, last.name);
 			if (IS_ERR(new_dentry)) {
+				kfree(last.name);
 				dentry_put(parent.dentry);
 				return PTR(PTR_ERR(new_dentry));
 			}
@@ -305,11 +342,13 @@ struct file *vfs_open(const char *path, u32 flags)
 			    parent.dentry->d_inode, new_dentry, mode);
 			if (ret < 0) {
 				dentry_free(new_dentry);
+				kfree(last.name);
 				dentry_put(parent.dentry);
 				return PTR((long)ret);
 			}
 
 			dentry_insert(new_dentry);
+			kfree(last.name);
 			dentry_put(parent.dentry);
 			dentry = new_dentry;
 		} else {
@@ -358,12 +397,14 @@ int vfs_mkdir(const char *path, umode_t mode)
 
 	if (!parent.dentry->d_inode ||
 	    !S_ISDIR(parent.dentry->d_inode->i_mode)) {
+		kfree(last.name);
 		dentry_put(parent.dentry);
 		return -ENOTDIR;
 	}
 
 	if (!parent.dentry->d_inode->i_op ||
 	    !parent.dentry->d_inode->i_op->mkdir) {
+		kfree(last.name);
 		dentry_put(parent.dentry);
 		return -ENOSYS;
 	}
@@ -371,6 +412,7 @@ int vfs_mkdir(const char *path, umode_t mode)
 	struct dentry *dentry =
 	    dentry_alloc(parent.dentry, parent.dentry->d_sb, last.name);
 	if (IS_ERR(dentry)) {
+		kfree(last.name);
 		dentry_put(parent.dentry);
 		return PTR_ERR(dentry);
 	}
@@ -380,11 +422,13 @@ int vfs_mkdir(const char *path, umode_t mode)
 						  dentry, mode);
 	if (ret < 0) {
 		dentry_free(dentry);
+		kfree(last.name);
 		dentry_put(parent.dentry);
 		return ret;
 	}
 
 	dentry_insert(dentry);
+	kfree(last.name);
 	dentry_put(dentry);
 	dentry_put(parent.dentry);
 
@@ -487,12 +531,14 @@ int vfs_create(const char *path, umode_t mode)
 
 	if (!parent.dentry->d_inode ||
 	    !S_ISDIR(parent.dentry->d_inode->i_mode)) {
+		kfree(last.name);
 		dentry_put(parent.dentry);
 		return -ENOTDIR;
 	}
 
 	if (!parent.dentry->d_inode->i_op ||
 	    !parent.dentry->d_inode->i_op->create) {
+		kfree(last.name);
 		dentry_put(parent.dentry);
 		return -ENOSYS;
 	}
@@ -500,6 +546,7 @@ int vfs_create(const char *path, umode_t mode)
 	struct dentry *dentry =
 	    dentry_alloc(parent.dentry, parent.dentry->d_sb, last.name);
 	if (IS_ERR(dentry)) {
+		kfree(last.name);
 		dentry_put(parent.dentry);
 		return PTR_ERR(dentry);
 	}
@@ -509,11 +556,13 @@ int vfs_create(const char *path, umode_t mode)
 						   dentry, mode);
 	if (ret < 0) {
 		dentry_free(dentry);
+		kfree(last.name);
 		dentry_put(parent.dentry);
 		return ret;
 	}
 
 	dentry_insert(dentry);
+	kfree(last.name);
 	dentry_put(dentry);
 	dentry_put(parent.dentry);
 
@@ -542,6 +591,7 @@ int vfs_rename(const char *old_path, const char *new_path)
 
 	if (!new_parent.dentry->d_inode ||
 	    !S_ISDIR(new_parent.dentry->d_inode->i_mode)) {
+		kfree(new_last.name);
 		dentry_put(old_dentry);
 		dentry_put(new_parent.dentry);
 		return -ENOTDIR;
@@ -550,6 +600,7 @@ int vfs_rename(const char *old_path, const char *new_path)
 	struct dentry *new_dentry = dentry_alloc(
 	    new_parent.dentry, new_parent.dentry->d_sb, new_last.name);
 	if (IS_ERR(new_dentry)) {
+		kfree(new_last.name);
 		dentry_put(old_dentry);
 		dentry_put(new_parent.dentry);
 		return PTR_ERR(new_dentry);
@@ -557,6 +608,7 @@ int vfs_rename(const char *old_path, const char *new_path)
 
 	if (!old_dentry->d_parent || !old_dentry->d_parent->d_inode) {
 		dentry_free(new_dentry);
+		kfree(new_last.name);
 		dentry_put(old_dentry);
 		dentry_put(new_parent.dentry);
 		return -ENOENT;
@@ -565,6 +617,7 @@ int vfs_rename(const char *old_path, const char *new_path)
 	if (!old_dentry->d_parent->d_inode->i_op ||
 	    !old_dentry->d_parent->d_inode->i_op->rename) {
 		dentry_free(new_dentry);
+		kfree(new_last.name);
 		dentry_put(old_dentry);
 		dentry_put(new_parent.dentry);
 		return -ENOSYS;
@@ -575,6 +628,7 @@ int vfs_rename(const char *old_path, const char *new_path)
 	    new_parent.dentry->d_inode, new_dentry);
 	if (ret < 0) {
 		dentry_free(new_dentry);
+		kfree(new_last.name);
 		dentry_put(old_dentry);
 		dentry_put(new_parent.dentry);
 		return ret;
@@ -582,8 +636,86 @@ int vfs_rename(const char *old_path, const char *new_path)
 
 	dentry_insert(new_dentry);
 	dentry_delete(old_dentry);
+	kfree(new_last.name);
 	dentry_put(new_dentry);
 	dentry_put(new_parent.dentry);
 
 	return 0;
+}
+
+ssize_t vfs_getdents(struct file *file, struct dirent *buf, size_t count)
+{
+	if (!file || !buf || count == 0) {
+		return -EINVAL;
+	}
+
+	if (!file->f_inode) {
+		return -ENOENT;
+	}
+
+	if (!S_ISDIR(file->f_inode->i_mode)) {
+		return -ENOTDIR;
+	}
+
+	if (!file->f_op || !file->f_op->readdir) {
+		return -ENOSYS;
+	}
+
+	return file_getdents(file, buf, count);
+}
+
+int vfs_statfs(const char *path, struct statfs *buf)
+{
+	if (!path || !buf) {
+		return -EINVAL;
+	}
+
+	struct dentry *dentry = vfs_path_lookup(NULL, path, LOOKUP_FOLLOW);
+	if (IS_ERR(dentry)) {
+		return PTR_ERR(dentry);
+	}
+
+	if (!dentry->d_inode) {
+		dentry_put(dentry);
+		return -ENOENT;
+	}
+
+	struct super_block *sb = dentry->d_inode->i_sb;
+	if (!sb || !sb->s_op || !sb->s_op->statfs) {
+		dentry_put(dentry);
+		return -ENOSYS;
+	}
+
+	int ret = sb->s_op->statfs(sb);
+	if (ret == 0) {
+		buf->f_type = 0;
+		buf->f_bsize = sb->s_blocksize;
+		buf->f_blocks = 0;
+		buf->f_bfree = 0;
+		buf->f_bavail = 0;
+		buf->f_files = 0;
+		buf->f_ffree = 0;
+		buf->f_fsid = sb->s_dev;
+		buf->f_namelen = NAME_MAX;
+		buf->f_frsize = sb->s_blocksize;
+		buf->f_flags = sb->s_flags;
+	}
+
+	dentry_put(dentry);
+	return ret;
+}
+
+int vfs_sync(void) { return 0; }
+
+int vfs_fsync(struct file *file)
+{
+	if (!file) {
+		return -EINVAL;
+	}
+
+	if (!file->f_op || !file->f_op->fsync) {
+		return 0;
+	}
+
+	return file->f_op->fsync(file);
 }
