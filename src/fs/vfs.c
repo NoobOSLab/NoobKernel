@@ -178,6 +178,64 @@ int vfs_mount_root(struct file_system_type *fs_type, dev_t dev)
 	return 0;
 }
 
+int vfs_mount_to(const char *target_path, struct file_system_type *fs_type,
+		 dev_t dev)
+{
+	if (!target_path || !fs_type) {
+		return -EINVAL;
+	}
+
+	struct dentry *mountpoint =
+	    vfs_path_lookup(NULL, target_path, LOOKUP_FOLLOW);
+	if (IS_ERR(mountpoint)) {
+		return PTR_ERR(mountpoint);
+	}
+
+	if (!mountpoint->d_inode || !S_ISDIR(mountpoint->d_inode->i_mode)) {
+		dentry_put(mountpoint);
+		return -ENOTDIR;
+	}
+
+	struct super_block *sb = vfs_mount(fs_type, dev, NULL);
+	if (IS_ERR(sb)) {
+		dentry_put(mountpoint);
+		return PTR_ERR(sb);
+	}
+
+	struct mount *mnt = kmalloc(sizeof(struct mount));
+	if (!mnt) {
+		vfs_umount(sb);
+		dentry_put(mountpoint);
+		return -ENOMEM;
+	}
+
+	struct mount *root_mnt = vfs_get_root_mount();
+	if (!root_mnt) {
+		kfree(mnt);
+		vfs_umount(sb);
+		dentry_put(mountpoint);
+		return -ENOENT;
+	}
+
+	mnt->mnt_parent = root_mnt;
+	mnt->mnt_mountpoint = mountpoint;
+	mnt->mnt_root = sb->s_root;
+	mnt->mnt_sb = sb;
+	INIT_LIST_HEAD(&mnt->mnt_mounts);
+	INIT_LIST_HEAD(&mnt->mnt_child);
+	mnt->mnt_lock = SPINLOCK_INITIALIZER("mount");
+	mnt->mnt_flags = 0;
+	mnt->mnt_refcnt = 1;
+
+	spinlock_acquire(&vfs_state.lock);
+	list_add(&mnt->mnt_mounts, &root_mnt->mnt_mounts);
+	list_add(&mnt->mnt_child, &vfs_state.mount_list);
+	spinlock_release(&vfs_state.lock);
+
+	infof("mounted filesystem '%s' at '%s'", fs_type->name, target_path);
+	return 0;
+}
+
 struct dentry *vfs_get_root(void)
 {
 	spinlock_acquire(&vfs_state.lock);
@@ -206,7 +264,10 @@ struct mount *vfs_lookup_mount(struct dentry *mountpoint)
 	struct mount *mnt;
 	list_for_each_entry(mnt, &vfs_state.mount_list, mnt_child)
 	{
-		if (mnt->mnt_mountpoint == mountpoint) {
+		struct dentry *mp = mnt->mnt_mountpoint;
+		if (mp && mp->d_parent == mountpoint->d_parent &&
+		    mp->d_name.len == mountpoint->d_name.len &&
+		    strcmp(mp->d_name.name, mountpoint->d_name.name) == 0) {
 			spinlock_release(&vfs_state.lock);
 			return mnt;
 		}
@@ -302,13 +363,13 @@ struct file *vfs_open(const char *path, u32 flags)
 				return PTR(-ENOENT);
 			}
 
-			infof("parent.dentry: %p", parent.dentry);
+			tracef("parent.dentry: %p", parent.dentry);
 			if (!parent.dentry) {
 				kfree(last.name);
 				return PTR(-ENOENT);
 			}
 
-			infof("parent.dentry->d_inode: %p",
+			tracef("parent.dentry->d_inode: %p",
 			      parent.dentry->d_inode);
 			if (!parent.dentry->d_inode) {
 				kfree(last.name);

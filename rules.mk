@@ -36,7 +36,8 @@ $(MODULE_NAME)_SUBMODULES := $(SUBMODULES)
 $(eval $(call module_template,$(MODULE_NAME),$(MODULE_PATH)))
 
 $(if $(strip $($(MODULE_NAME)_SUBMODULES)),\
+  $(eval _SAVED_MODULE_PATH := $(MODULE_PATH))\
   $(foreach m,$($(MODULE_NAME)_SUBMODULES),\
-    $(eval include $(SRC_DIR)/$(MODULE_PATH)/$(m)/Makefile) \
+    $(eval include $(SRC_DIR)/$(_SAVED_MODULE_PATH)/$(m)/Makefile) \
   ) \
 )

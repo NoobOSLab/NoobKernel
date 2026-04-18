@@ -52,6 +52,8 @@ struct super_block *vfs_mount(struct file_system_type *fs_type, dev_t dev,
 			      void *data);
 int vfs_umount(struct super_block *sb);
 int vfs_mount_root(struct file_system_type *fs_type, dev_t dev);
+int vfs_mount_to(const char *target_path, struct file_system_type *fs_type,
+		 dev_t dev);
 
 struct mount *vfs_lookup_mount(struct dentry *mountpoint);
 struct mount *vfs_get_root_mount(void);

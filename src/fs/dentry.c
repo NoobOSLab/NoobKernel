@@ -131,13 +131,24 @@ struct dentry *dentry_lookup(struct super_block *sb, struct dentry *parent,
 {
 	spinlock_acquire(&dentry_state.lock);
 
-	u32 key = dentry_hash_key(sb, parent, name);
-	struct dentry *dentry =
-	    hashtable_lookup(&dentry_state.ht, (void *)(uintptr_t)key);
+	u32 bucket_idx = dentry_hash_key(sb, parent, name);
+
+	struct hash_node *node;
+	list_for_each_entry(node, &dentry_state.ht.buckets[bucket_idx], list)
+	{
+		struct dentry *dentry = (struct dentry *)node->value;
+		if (dentry && dentry->d_sb == sb &&
+		    dentry->d_parent == parent &&
+		    dentry->d_name.len == name->len &&
+		    strcmp(dentry->d_name.name, name->name) == 0) {
+			spinlock_release(&dentry_state.lock);
+			return dentry;
+		}
+	}
 
 	spinlock_release(&dentry_state.lock);
 
-	return dentry;
+	return NULL;
 }
 
 void dentry_put(struct dentry *dentry)

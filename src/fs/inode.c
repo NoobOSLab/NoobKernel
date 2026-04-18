@@ -36,9 +36,18 @@ void inode_init(void)
 
 struct inode *inode_alloc(struct super_block *sb)
 {
-	struct inode *inode = kmem_cache_alloc(&inode_cache);
-	if (!inode) {
-		return PTR(-ENOMEM);
+	struct inode *inode;
+
+	if (sb && sb->s_op && sb->s_op->alloc_inode) {
+		inode = sb->s_op->alloc_inode(sb);
+		if (IS_ERR(inode) || !inode) {
+			return inode;
+		}
+	} else {
+		inode = kmem_cache_alloc(&inode_cache);
+		if (!inode) {
+			return PTR(-ENOMEM);
+		}
 	}
 
 	inode->i_ino = 0;
@@ -57,25 +66,12 @@ struct inode *inode_alloc(struct super_block *sb)
 	inode->i_op = NULL;
 	inode->i_fop = NULL;
 	inode->i_mapping = NULL;
-	inode->i_private = NULL;
 
 	INIT_LIST_HEAD(&inode->i_list);
 	INIT_LIST_HEAD(&inode->i_dentry);
 	inode->i_lock = SPINLOCK_INITIALIZER("inode");
 	inode->i_refcnt = 1;
 	inode->i_state = I_NEW;
-
-	if (sb && sb->s_op && sb->s_op->alloc_inode) {
-		struct inode *alloced = sb->s_op->alloc_inode(sb);
-		if (IS_ERR(alloced)) {
-			kmem_cache_free(inode);
-			return alloced;
-		}
-		if (alloced) {
-			kmem_cache_free(inode);
-			return alloced;
-		}
-	}
 
 	return inode;
 }

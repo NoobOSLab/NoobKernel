@@ -9,6 +9,17 @@
 #include <misc/string.h>
 #include <mm/kalloc.h>
 
+static struct dentry *follow_mount(struct dentry *dentry)
+{
+	struct mount *mnt = vfs_lookup_mount(dentry);
+	if (mnt) {
+		dentry_put(dentry);
+		dentry_get(mnt->mnt_root);
+		return mnt->mnt_root;
+	}
+	return dentry;
+}
+
 static int vfs_get_name(const char *path, char *name, u32 *len)
 {
 	if (!path || !name || !len) {
@@ -43,21 +54,20 @@ static const char *vfs_skip_slashes(const char *path)
 static struct dentry *vfs_lookup_single(struct dentry *base, const char *name,
 					u32 len)
 {
-	tracef("vfs_lookup_single: base=%p, name='%s', len=%u", base, name,
-	       len);
-
 	if (!base || !name || len == 0) {
-		tracef("vfs_lookup_single: invalid params");
 		return PTR(-EINVAL);
 	}
 
+	struct mount *mnt = vfs_lookup_mount(base);
+	if (mnt && mnt->mnt_root) {
+		base = mnt->mnt_root;
+	}
+
 	if (!base->d_inode || !S_ISDIR(base->d_inode->i_mode)) {
-		tracef("vfs_lookup_single: not a directory");
 		return PTR(-ENOTDIR);
 	}
 
 	if (!base->d_inode->i_op || !base->d_inode->i_op->lookup) {
-		tracef("vfs_lookup_single: no lookup operation");
 		return PTR(-ENOSYS);
 	}
 
@@ -66,41 +76,31 @@ static struct dentry *vfs_lookup_single(struct dentry *base, const char *name,
 	qstr.len = len;
 	qstr.hash = hash_string(name, len);
 
-	tracef("vfs_lookup_single: calling dentry_lookup");
 	struct dentry *dentry = dentry_lookup(base->d_sb, base, &qstr);
 	if (dentry) {
-		tracef("vfs_lookup_single: found in cache");
 		return dentry;
 	}
 
-	tracef("vfs_lookup_single: allocating new dentry");
 	dentry = dentry_alloc(base, base->d_sb, name);
 	if (IS_ERR(dentry)) {
-		tracef("vfs_lookup_single: dentry_alloc failed");
 		return dentry;
 	}
 
 	tracef("vfs_lookup_single: calling lookup, dentry=%p", dentry);
 	struct dentry *result =
 	    base->d_inode->i_op->lookup(base->d_inode, dentry);
-	tracef("vfs_lookup_single: lookup returned %p (IS_ERR=%d)", result,
-	       IS_ERR(result));
 
 	if (IS_ERR(result)) {
-		tracef("vfs_lookup_single: lookup failed, freeing dentry");
 		dentry_free(dentry);
 		return result;
 	}
 
 	if (result != dentry) {
-		tracef("vfs_lookup_single: result != dentry");
 		dentry_free(dentry);
 		dentry = result;
 	}
 
-	tracef("vfs_lookup_single: calling dentry_insert");
 	dentry_insert(dentry);
-	tracef("vfs_lookup_single: done");
 	return dentry;
 }
 
@@ -146,6 +146,8 @@ int vfs_path_walk(struct nameidata *nd, const char *path)
 			if (IS_ERR(next)) {
 				return PTR_ERR(next);
 			}
+
+			next = follow_mount(next);
 
 			dentry_put(dentry);
 			dentry = next;
@@ -268,6 +270,8 @@ int vfs_path_parent(struct dentry *base, const char *path, struct path *parent,
 				dentry_put(base);
 				return PTR_ERR(next);
 			}
+
+			next = follow_mount(next);
 
 			if (current != base) {
 				dentry_put(current);
